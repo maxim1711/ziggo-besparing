@@ -270,7 +270,30 @@
 
   .client-only{display:none}
   body.client-view .inputs-only{display:none}
-  body.client-view .client-only{display:block}
+  body.client-view #summaryCard{display:block}
+  body.client-view #stepsCard{display:none}
+  body.client-view.show-steps #summaryCard{display:none}
+  body.client-view.show-steps #stepsCard{display:block}
+
+  /* Klein aanvinkvakje (e-mail behouden) */
+  .mini-check{display:flex;align-items:center;gap:9px;margin:10px 2px 0;font-size:13px;color:var(--muted);cursor:pointer}
+  .mini-check input{width:18px;height:18px;accent-color:var(--ziggo);flex:0 0 auto;margin:0}
+  .mini-check b{color:var(--ink);font-weight:800}
+
+  /* Stappenplan */
+  .steps{list-style:none;margin:0;padding:0}
+  .steps li{display:flex;gap:12px;padding:11px 0;align-items:flex-start}
+  .steps li+li{border-top:1px solid var(--line)}
+  .stepno{flex:0 0 auto;width:28px;height:28px;border-radius:50%;background:var(--ziggo);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px;margin-top:1px}
+  .steps strong{display:block;font-size:16px;font-weight:800}
+  .steps p{margin:2px 0 0;font-size:14px;color:var(--muted);line-height:1.45}
+  .promises{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+  .promise{background:var(--green-bg);color:var(--green);border-radius:11px;padding:11px 13px;font-size:15px;font-weight:700;display:flex;gap:10px;align-items:center;line-height:1.35}
+  .promise .pi{flex:0 0 auto;font-size:18px}
+  .btn-next,.btn-back{width:100%;height:50px;border-radius:12px;font-size:15px;font-weight:800;margin-top:16px}
+  .btn-next{background:var(--ziggo);color:#fff}
+  .btn-next:active{background:var(--ziggo-dark)}
+  .btn-back{background:var(--soft);color:var(--ink)}
 
   .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
   .note{font-size:12px;color:var(--muted);margin:2px 0 0;text-align:center}
@@ -407,6 +430,11 @@
           </div>
         </div>
 
+        <label class="mini-check">
+          <input type="checkbox" id="newKeepEmail">
+          <span>E-mailadres behouden bij oude provider <b>(+ € 7,75 p/m)</b></span>
+        </label>
+
         <div class="subtotal"><span>Normale nieuwe prijs / maand</span><span class="val" id="newTotal">€ 0,00</span></div>
       </section>
     </div>
@@ -469,6 +497,25 @@
       <p class="line">Over <span id="fHorizon">24</span> maanden bespaart u in totaal <b id="fTotal">€ 0</b>.</p>
       <p class="line">Gemiddeld bespaart u <b id="fAvg">€ 0</b> per maand.</p>
     </details>
+    <button class="btn-next" id="toStepsBtn">Zo werkt de overstap →</button>
+  </section>
+
+  <!-- ===== STAPPENPLAN (klantweergave, pagina 2) ===== -->
+  <section class="card client-only" id="stepsCard">
+    <h2><span class="num">→</span> Zo werkt de overstap</h2>
+    <ol class="steps">
+      <li><span class="stepno">1</span><div><strong>U tekent vandaag</strong><p>Meer hoeft u niet te doen — wij nemen het hele proces van u over.</p></div></li>
+      <li><span class="stepno">2</span><div><strong>Wij regelen uw huidige provider</strong><p>Wij zeggen uw oude abonnement voor u op. U hoeft zelf niets te bellen of regelen.</p></div></li>
+      <li><span class="stepno">3</span><div><strong>Gratis monteur komt langs</strong><p>Een monteur installeert alles netjes bij u thuis, inclusief wifi in het hele huis.</p></div></li>
+      <li><span class="stepno">4</span><div><strong>Klaar — u geniet</strong><p>U stapt naadloos over naar uw nieuwe pakket. Zonder gedoe.</p></div></li>
+    </ol>
+    <div class="promises">
+      <div class="promise"><span class="pi">✅</span><span>Wij regelen alles met uw huidige provider</span></div>
+      <div class="promise"><span class="pi">🔧</span><span>Gratis monteur installeert alles netjes</span></div>
+      <div class="promise"><span class="pi">📶</span><span>Wifi-garantie in het hele huis</span></div>
+      <div class="promise"><span class="pi">💶</span><span>Geen dag dubbele kosten — naadloze overstap</span></div>
+    </div>
+    <button class="btn-back" id="backToOverview">← Terug naar overzicht</button>
   </section>
 
   <p class="note inputs-only">Bedragen zijn indicatief en dienen ter illustratie tijdens het gesprek.</p>
@@ -540,7 +587,8 @@
     // Nieuwe kosten
     const newMobile = $('newHasMobile').checked ? num('newMobilePrice')*int('newMobileCount') : 0;
     const newExtra  = $('newHasExtra').checked ? num('newDiscount') : 0;
-    const newMonthly = Math.max(0, newInternet + newMobile - newExtra);
+    const emailCost = $('newKeepEmail').checked ? 7.75 : 0;   // e-mail behouden bij oude provider
+    const newMonthly = Math.max(0, newInternet + newMobile - newExtra + emailCost);
 
     if(!normPriceTouched){ $('normPrice').value = newMonthly ? newMonthly.toFixed(2) : ''; }
     const normPrice = num('normPrice');
@@ -668,6 +716,11 @@
     });
   });
 
+  /* ---------- E-mail behouden + stappenplan-navigatie ---------- */
+  $('newKeepEmail').addEventListener('change', calc);
+  $('toStepsBtn').addEventListener('click', ()=>{ document.body.classList.add('show-steps'); scrollTo({top:0, behavior:'smooth'}); });
+  $('backToOverview').addEventListener('click', ()=>{ document.body.classList.remove('show-steps'); scrollTo({top:0, behavior:'smooth'}); });
+
   /* ---------- Contractkeuze (2-jarig standaard, 1-jarig discreet) ---------- */
   function setContract(c){
     contract = c;
@@ -745,9 +798,10 @@
     document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
     document.querySelectorAll('.toggle-row input[type=checkbox]').forEach(c=>{ c.checked=false; });
     document.querySelectorAll('.collapsible').forEach(w=>w.classList.remove('open'));
+    $('newKeepEmail').checked = false;
     normPriceTouched = false; discTouched = false;
     setContract('2j');
-    document.body.classList.remove('client-view');
+    document.body.classList.remove('client-view','show-steps');
     $('viewBtn').textContent = '👁 Toon klantoverzicht';
     setTab(0);
     calc();
@@ -757,6 +811,7 @@
   /* ---------- Klantoverzicht tonen (met count-up + confetti) ---------- */
   $('viewBtn').addEventListener('click', ()=>{
     const on = document.body.classList.toggle('client-view');
+    document.body.classList.remove('show-steps');   // altijd op het overzicht starten
     $('viewBtn').textContent = on ? '✏️ Terug naar invoer' : '👁 Toon klantoverzicht';
     if(on){
       // count-up vanaf 0 voor het wow-moment
