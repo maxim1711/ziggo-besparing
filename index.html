@@ -130,6 +130,21 @@
   .seg-btn.active{background:var(--ziggo);border-color:var(--ziggo);color:#fff}
   .seg-btn.active small{color:rgba(255,255,255,.9)}
 
+  /* Contractweergave: 2-jarig prominent, 1-jarig discreet */
+  .contract-display{display:flex;align-items:stretch;gap:8px;margin:0 0 12px}
+  .cd-main{
+    flex:1;background:var(--ziggo);color:#fff;border-radius:12px;padding:12px 14px;
+    display:flex;flex-direction:column;justify-content:center;gap:2px;
+  }
+  .cd-main strong{font-size:16px;font-weight:800}
+  .cd-main small{font-size:11px;font-weight:700;color:rgba(255,255,255,.9)}
+  .cd-alt{
+    flex:0 0 auto;background:transparent;color:var(--muted);
+    border:1px solid var(--line);border-radius:10px;padding:0 10px;
+    font-size:11px;font-weight:700;opacity:.7;
+  }
+  .cd-alt:active{background:var(--soft);opacity:1}
+
   .schedule{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:6px 12px;margin:12px 0 4px}
   .schedule .srow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;font-weight:700}
   .schedule .srow+.srow{border-top:1px dashed var(--line)}
@@ -400,9 +415,12 @@
     <div class="panel">
       <section class="card">
         <h2><span class="num">3</span> Contract &amp; korting</h2>
-        <div class="seg" id="contractSeg">
-          <button type="button" class="seg-btn active" data-c="2j">2-jarig<small>12 mnd 50% · over 24 mnd</small></button>
-          <button type="button" class="seg-btn" data-c="1j">1-jarig<small>9 mnd 50% · over 12 mnd</small></button>
+        <div class="contract-display">
+          <div class="cd-main">
+            <strong id="cdTitle">2-jarig contract</strong>
+            <small id="cdSub">12 mnd 50% korting · over 24 maanden</small>
+          </div>
+          <button type="button" class="cd-alt" id="contractToggle" title="Andere looptijd">1-jarig</button>
         </div>
         <p class="hint" id="contractInfo"></p>
         <div class="schedule">
@@ -650,15 +668,16 @@
     });
   });
 
-  /* ---------- Contractkeuze ---------- */
-  document.querySelectorAll('#contractSeg .seg-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      contract = btn.getAttribute('data-c');
-      document.querySelectorAll('#contractSeg .seg-btn').forEach(b=>b.classList.toggle('active', b===btn));
-      discTouched = false; normPriceTouched = false; // laat korting weer automatisch berekenen
-      calc();
-    });
-  });
+  /* ---------- Contractkeuze (2-jarig standaard, 1-jarig discreet) ---------- */
+  function setContract(c){
+    contract = c;
+    $('cdTitle').textContent = c === '2j' ? '2-jarig contract' : '1-jarig contract';
+    $('cdSub').textContent   = c === '2j' ? '12 mnd 50% korting · over 24 maanden' : '9 mnd 50% korting · over 12 maanden';
+    $('contractToggle').textContent = c === '2j' ? '1-jarig' : '2-jarig';
+    discTouched = false; normPriceTouched = false; // korting weer automatisch berekenen
+    calc();
+  }
+  $('contractToggle').addEventListener('click', ()=> setContract(contract === '2j' ? '1j' : '2j'));
 
   /* ---------- Tabs + swipe ---------- */
   const tabs = [...document.querySelectorAll('.tab')];
@@ -726,8 +745,8 @@
     document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
     document.querySelectorAll('.toggle-row input[type=checkbox]').forEach(c=>{ c.checked=false; });
     document.querySelectorAll('.collapsible').forEach(w=>w.classList.remove('open'));
-    normPriceTouched = false; discTouched = false; contract = '2j';
-    document.querySelectorAll('#contractSeg .seg-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-c')==='2j'));
+    normPriceTouched = false; discTouched = false;
+    setContract('2j');
     document.body.classList.remove('client-view');
     $('viewBtn').textContent = '👁 Toon klantoverzicht';
     setTab(0);
