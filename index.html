@@ -759,13 +759,76 @@
       '4. Geen dag dubbele kosten'
     ].join('\n');
   }
-  function doShare(){
-    const msg = shareText();
-    if(navigator.share){
-      navigator.share({ title:'Ziggo / Vodafone besparing', text: msg }).catch(()=>{});
-    } else {
-      window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
-    }
+  // Ziggo-logo vast voorladen voor de afbeelding
+  let _logo;
+  function getLogo(){
+    if(!_logo){ _logo = new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src='logo.svg'; }); }
+    return _logo;
+  }
+  getLogo().catch(()=>{});
+
+  function rr(x,X,Y,W,H,r){
+    if(x.roundRect){ x.beginPath(); x.roundRect(X,Y,W,H,r); }
+    else { x.beginPath(); x.moveTo(X+r,Y); x.arcTo(X+W,Y,X+W,Y+H,r); x.arcTo(X+W,Y+H,X,Y+H,r); x.arcTo(X,Y+H,X,Y,r); x.arcTo(X,Y,X+W,Y,r); x.closePath(); }
+  }
+
+  async function buildImageCanvas(){
+    const s = state, W = 1080, H = 1240;
+    const avgNew = s.horizon ? s.newTotal/s.horizon : 0;
+    const saving = s.totalSave >= 0;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    x.fillStyle = '#ffffff'; x.fillRect(0,0,W,H);
+    x.fillStyle = '#1b1f24'; x.fillRect(0,0,W,180);
+    x.fillStyle = '#f5751f'; x.fillRect(0,180,W,6);
+    try{ const logo = await getLogo(); const lw=260, lh=lw*((logo.naturalHeight/logo.naturalWidth)||0.348); x.drawImage(logo,60,(180-lh)/2,lw,lh); }catch(e){}
+
+    x.fillStyle='#1b1f24'; x.textAlign='left'; x.font='bold 46px Arial, sans-serif';
+    x.fillText('Uw persoonlijke besparing', 60, 285);
+
+    const bx=60, by=320, bw=W-120, bh=250;
+    rr(x,bx,by,bw,bh,24); x.fillStyle = saving ? '#0e9d6b' : '#d8433f'; x.fill();
+    x.fillStyle='#ffffff'; x.textAlign='center';
+    x.font='500 32px Arial'; x.fillText((saving?'Totale besparing over ':'Extra kosten over ')+s.horizon+' maanden', W/2, by+62);
+    x.font='bold 104px Arial'; x.fillText(eur(Math.abs(s.totalSave),false), W/2, by+165);
+    x.font='500 32px Arial'; x.fillText('gemiddeld '+eur(Math.abs(s.avgSave),false)+' per maand', W/2, by+220);
+
+    let yy = by+bh+78;
+    x.textAlign='left'; x.fillStyle='#1b1f24'; x.font='500 36px Arial'; x.fillText('Nu', 60, yy);
+    x.textAlign='right'; x.font='bold 36px Arial'; x.fillText(eur(s.curMonthly,true)+' p/m', W-60, yy);
+    yy+=62; x.textAlign='left'; x.font='500 36px Arial'; x.fillText('Bij Ziggo / Vodafone', 60, yy);
+    x.textAlign='right'; x.font='bold 36px Arial'; x.fillText('gem. '+eur(avgNew,true)+' p/m', W-60, yy);
+
+    yy+=40; x.strokeStyle='#e7e9ec'; x.lineWidth=2; x.beginPath(); x.moveTo(60,yy); x.lineTo(W-60,yy); x.stroke();
+
+    yy+=68; x.textAlign='left'; x.fillStyle='#1b1f24'; x.font='bold 40px Arial'; x.fillText('Zo werkt de overstap', 60, yy);
+    yy+=66;
+    const steps=['U tekent — wij regelen de rest','Wij zeggen uw huidige provider op','Gratis monteur + wifi-garantie','Geen dag dubbele kosten'];
+    steps.forEach((t,i)=>{
+      x.fillStyle='#f5751f'; x.beginPath(); x.arc(86, yy-13, 24, 0, Math.PI*2); x.fill();
+      x.fillStyle='#ffffff'; x.textAlign='center'; x.font='bold 28px Arial'; x.fillText(String(i+1), 86, yy-3);
+      x.textAlign='left'; x.fillStyle='#1b1f24'; x.font='500 34px Arial'; x.fillText(t, 128, yy); yy+=64;
+    });
+    yy+=16; x.fillStyle='#727880'; x.font='500 26px Arial';
+    x.fillText('Indicatieve berekening — '+new Date().toLocaleDateString('nl-NL'), 60, yy);
+    return c;
+  }
+
+  async function doShare(){
+    let blob = null, file = null;
+    try{
+      const canvas = await buildImageCanvas();
+      blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      if(blob) file = new File([blob], 'ziggo-besparing.png', { type:'image/png' });
+    }catch(e){ file = null; }
+    try{
+      if(file && navigator.canShare && navigator.canShare({ files:[file] })){
+        await navigator.share({ files:[file], text:'Uw persoonlijke Ziggo / Vodafone berekening' }); return;
+      }
+      if(navigator.share){ await navigator.share({ title:'Ziggo / Vodafone besparing', text: shareText() }); return; }
+      if(blob){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ziggo-besparing.png'; a.click(); return; }
+      window.open('https://wa.me/?text=' + encodeURIComponent(shareText()), '_blank');
+    }catch(e){ /* geannuleerd */ }
   }
   document.querySelectorAll('.js-share').forEach(b => b.addEventListener('click', doShare));
 
