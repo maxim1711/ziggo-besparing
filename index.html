@@ -118,18 +118,6 @@
   .chip:active{background:var(--soft)}
   .chip.active{background:var(--ziggo);border-color:var(--ziggo);color:#fff}
 
-  /* Contract-keuze */
-  .seg{display:flex;gap:8px;margin:0 0 12px}
-  .seg-btn{
-    flex:1;min-height:58px;border-radius:12px;border:1.5px solid var(--line);
-    background:var(--card);color:var(--ink);font-size:15px;font-weight:800;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    line-height:1.2;padding:6px;gap:2px;
-  }
-  .seg-btn small{font-size:11px;font-weight:700;color:var(--muted)}
-  .seg-btn.active{background:var(--ziggo);border-color:var(--ziggo);color:#fff}
-  .seg-btn.active small{color:rgba(255,255,255,.9)}
-
   /* Contractweergave: 2-jarig prominent, 1-jarig discreet */
   .contract-display{display:flex;align-items:stretch;gap:8px;margin:0 0 12px}
   .cd-main{
@@ -223,20 +211,6 @@
   .panel{display:none;animation:slidein .28s ease}
   .panel.active{display:block}
   @keyframes slidein{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
-
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .stat{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:12px}
-  .stat .k{font-size:12px;color:var(--muted);font-weight:600;margin:0 0 4px}
-  .stat .v{font-size:19px;font-weight:800;margin:0;font-variant-numeric:tabular-nums}
-  .stat.good .v{color:var(--green)}
-  .stat.bad .v{color:var(--red)}
-
-  .compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
-  .compare .box{border-radius:12px;padding:12px;text-align:center}
-  .compare .now{background:var(--soft);border:1px solid var(--line)}
-  .compare .new{background:var(--green-bg);border:1px solid color-mix(in srgb,var(--green) 35%,transparent)}
-  .compare .box .t{font-size:12px;font-weight:700;color:var(--muted);margin:0 0 6px;text-transform:uppercase;letter-spacing:.3px}
-  .compare .box .m{font-size:22px;font-weight:900;margin:0;font-variant-numeric:tabular-nums}
 
   /* ===== Customer summary ===== */
   #summaryCard .sline{font-size:21px;line-height:1.45;font-weight:700;margin:0 0 12px}
