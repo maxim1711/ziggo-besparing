@@ -1,0 +1,17 @@
+{
+  "name": "Ziggo Besparingscheck",
+  "short_name": "Besparing",
+  "description": "Bereken snel hoeveel een klant bespaart bij overstap naar Ziggo/Vodafone.",
+  "lang": "nl",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1b1f24",
+  "theme_color": "#1b1f24",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

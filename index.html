@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1b1f24">
+<title>Ziggo Besparingscheck</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Besparing">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  :root{
+    color-scheme: light dark; /* app regelt zelf licht/donker → browser gaat niet 'auto-darken' */
+    --ziggo:#f5751f;          /* verfijnd Ziggo-oranje */
+    --ziggo-dark:#dd6212;
+    --voda:#1b1f24;           /* charcoal */
+    --green:#0e9d6b;
+    --green-bg:#e8f6f0;
+    --red:#d8433f;
+    --red-bg:#fbeceb;
+    --ink:#1b1f24;
+    --muted:#727880;
+    --line:#e7e9ec;
+    --card:#ffffff;
+    --bg:#f1f2f4;
+    --soft:#f5f6f8;
+    --field-bg:#ffffff;
+    --radius:16px;
+  }
+  body[data-theme="dark"]{
+    color-scheme: dark;
+    --ink:#eef0f2;
+    --muted:#9aa0a8;
+    --line:#2a2e34;
+    --card:#181b1f;
+    --bg:#0e1013;
+    --soft:#22262b;
+    --field-bg:#20242a;
+    --green:#1bb583;
+    --green-bg:#10382a;
+    --red:#e8615c;
+    --red-bg:#3a1e1d;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);
+    font-size:17px;line-height:1.4;
+    padding-bottom:120px;
+    transition:background .3s,color .3s;
+  }
+  header{
+    background:var(--voda);color:#fff;padding:14px 16px 16px;
+    position:relative;z-index:20;
+    box-shadow:0 1px 0 rgba(0,0,0,.04);
+    overflow:hidden;
+  }
+  header::after{
+    content:"";position:absolute;left:0;bottom:0;height:3px;width:100%;
+    background:var(--ziggo);
+  }
+  .brandrow{display:flex;align-items:center;gap:12px;margin:0 0 8px}
+  .ziggo-logo{height:30px;width:auto;display:block;flex:0 0 auto}
+  .brandrow .spacer{flex:1}
+  .icon-btn{
+    background:rgba(255,255,255,.12);color:#fff;width:40px;height:40px;border-radius:12px;
+    font-size:19px;display:flex;align-items:center;justify-content:center;
+  }
+  .icon-btn:active{background:rgba(255,255,255,.25)}
+  header h1{margin:0;font-size:19px;font-weight:800;letter-spacing:-.2px}
+  header p{margin:2px 0 0;font-size:13px;color:#d1d1d1}
+  main{max-width:520px;margin:0 auto;padding:14px 12px 0}
+
+  .card{
+    background:var(--card);border-radius:var(--radius);
+    padding:16px;margin:0 0 14px;
+    box-shadow:0 1px 3px rgba(0,0,0,.06);
+    border:1px solid var(--line);
+  }
+  .card h2{margin:0 0 14px;font-size:16px;font-weight:800;display:flex;align-items:center;gap:9px}
+  .num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:26px;height:26px;border-radius:50%;
+    background:var(--ziggo);color:#fff;font-size:14px;font-weight:800;flex:0 0 auto;
+  }
+
+  .field{margin:0 0 12px}
+  .field:last-child{margin-bottom:0}
+  label{display:block;font-size:14px;font-weight:600;color:var(--muted);margin:0 0 6px}
+  .input-euro{position:relative}
+  .input-euro::before{
+    content:"€";position:absolute;left:14px;top:50%;transform:translateY(-50%);
+    color:var(--muted);font-weight:700;font-size:17px;pointer-events:none;
+  }
+  input[type=number]{
+    width:100%;height:52px;border:1.5px solid var(--line);border-radius:12px;
+    padding:0 14px 0 30px;font-size:18px;font-weight:600;color:var(--ink);
+    background:var(--field-bg);outline:none;-moz-appearance:textfield;
+  }
+  input.plain{padding-left:14px}
+  input.ro{background:var(--soft);color:var(--muted)}
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  input:focus{border-color:var(--ziggo);box-shadow:0 0 0 3px rgba(255,107,0,.15)}
+
+  .row{display:flex;gap:10px}
+  .row .field{flex:1}
+
+  .chips{display:flex;gap:8px;margin-top:8px}
+  .chip{
+    flex:1;height:40px;border-radius:10px;border:1.5px solid var(--line);
+    background:var(--card);color:var(--ink);font-size:14px;font-weight:700;
+  }
+  .chip:active{background:var(--soft)}
+  .chip.active{background:var(--ziggo);border-color:var(--ziggo);color:#fff}
+
+  /* Contract-keuze */
+  .seg{display:flex;gap:8px;margin:0 0 12px}
+  .seg-btn{
+    flex:1;min-height:58px;border-radius:12px;border:1.5px solid var(--line);
+    background:var(--card);color:var(--ink);font-size:15px;font-weight:800;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    line-height:1.2;padding:6px;gap:2px;
+  }
+  .seg-btn small{font-size:11px;font-weight:700;color:var(--muted)}
+  .seg-btn.active{background:var(--ziggo);border-color:var(--ziggo);color:#fff}
+  .seg-btn.active small{color:rgba(255,255,255,.9)}
+
+  .schedule{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:6px 12px;margin:12px 0 4px}
+  .schedule .srow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;font-weight:700}
+  .schedule .srow+.srow{border-top:1px dashed var(--line)}
+  .schedule .lab{color:var(--muted);font-size:14px}
+  .schedule .val{font-size:17px;font-variant-numeric:tabular-nums}
+
+  details{margin-top:6px}
+  summary{cursor:pointer;font-size:14px;font-weight:800;color:var(--ziggo);list-style:none;padding:8px 0}
+  summary::-webkit-details-marker{display:none}
+  details[open] summary{margin-bottom:6px}
+
+  /* Slide-schakelaars (ja/nee) */
+  .toggle-row{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--soft);
+    margin:0 0 12px;
+  }
+  .toggle-row .tl{font-size:15px;font-weight:700}
+  .switch{position:relative;display:inline-block;width:56px;height:32px;flex:0 0 auto}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{
+    position:absolute;inset:0;cursor:pointer;background:#cfd3da;border-radius:999px;transition:background .25s;
+  }
+  .slider::before{
+    content:"";position:absolute;height:26px;width:26px;left:3px;top:3px;background:#fff;border-radius:50%;
+    transition:transform .25s;box-shadow:0 1px 3px rgba(0,0,0,.3);
+  }
+  .switch input:checked + .slider{background:var(--ziggo)}
+  .switch input:checked + .slider::before{transform:translateX(24px)}
+
+  .collapsible{display:none}
+  .collapsible.open{display:block;animation:slidein .28s ease}
+
+  .subtotal{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);
+    font-weight:800;font-size:16px;
+  }
+  .subtotal .val{font-size:20px}
+
+  /* ===== Big result ===== */
+  .bigresult{text-align:center;border-radius:var(--radius);padding:18px 16px;margin:0 0 14px;color:#fff;overflow:hidden}
+  .bigresult.save{background:linear-gradient(135deg,#12a978,#0b7f57)}
+  .bigresult.loss{background:linear-gradient(135deg,#dd5952,#bf332d)}
+  .bigresult .lbl{font-size:14px;font-weight:600;opacity:.95;margin:0}
+  .bigresult .amount{font-size:42px;font-weight:900;margin:2px 0 2px;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+  .bigresult .sub{font-size:14px;opacity:.95;margin:0}
+  .funline{
+    margin:12px auto 0;background:rgba(255,255,255,.18);border-radius:999px;
+    padding:7px 14px;font-size:14px;font-weight:700;display:inline-block;
+  }
+  /* Thermometer */
+  .thermo{margin-top:14px;text-align:left}
+  .thermo .bar-row{display:flex;align-items:center;gap:10px;margin:0 0 8px}
+  .thermo .bar-row:last-child{margin:0}
+  .thermo .tag{width:44px;font-size:12px;font-weight:800;opacity:.95;flex:0 0 auto}
+  .thermo .track{flex:1;height:22px;background:rgba(255,255,255,.22);border-radius:999px;overflow:hidden}
+  .thermo .fill{height:100%;border-radius:999px;width:0;transition:width .6s cubic-bezier(.22,1,.36,1)}
+  .thermo .fill.now{background:rgba(255,255,255,.55)}
+  .thermo .fill.new{background:#fff}
+  .thermo .amt{width:64px;text-align:right;font-size:13px;font-weight:800;flex:0 0 auto;font-variant-numeric:tabular-nums}
+
+  /* ===== Tabs ===== */
+  .tabs{
+    display:flex;gap:6px;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:5px;margin:0 0 14px;
+    position:sticky;top:8px;z-index:15;box-shadow:0 1px 3px rgba(0,0,0,.06);
+  }
+  .tab{
+    flex:1;height:44px;border-radius:10px;background:transparent;color:var(--muted);
+    font-size:13px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;
+  }
+  .tab small{font-size:10px;font-weight:700;opacity:.8}
+  .tab.active{background:var(--ziggo);color:#fff}
+
+  .panel{display:none;animation:slidein .28s ease}
+  .panel.active{display:block}
+  @keyframes slidein{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .stat{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .stat .k{font-size:12px;color:var(--muted);font-weight:600;margin:0 0 4px}
+  .stat .v{font-size:19px;font-weight:800;margin:0;font-variant-numeric:tabular-nums}
+  .stat.good .v{color:var(--green)}
+  .stat.bad .v{color:var(--red)}
+
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+  .compare .box{border-radius:12px;padding:12px;text-align:center}
+  .compare .now{background:var(--soft);border:1px solid var(--line)}
+  .compare .new{background:var(--green-bg);border:1px solid color-mix(in srgb,var(--green) 35%,transparent)}
+  .compare .box .t{font-size:12px;font-weight:700;color:var(--muted);margin:0 0 6px;text-transform:uppercase;letter-spacing:.3px}
+  .compare .box .m{font-size:22px;font-weight:900;margin:0;font-variant-numeric:tabular-nums}
+
+  /* ===== Customer summary ===== */
+  #summaryCard .sline{font-size:21px;line-height:1.45;font-weight:700;margin:0 0 12px}
+  #summaryCard .sline b{font-weight:900}
+  #moreInfo{margin-top:12px;border-top:1px solid var(--line);padding-top:4px}
+  #moreInfo .line{font-size:16px;line-height:1.6;margin:0 0 6px;color:var(--muted)}
+  #moreInfo .line b{color:var(--ink)}
+  #summaryCard .line{font-size:18px;line-height:1.6;margin:0 0 6px}
+  #summaryCard b{font-weight:800;font-variant-numeric:tabular-nums}
+  .euro-now{color:var(--ink)}
+  .euro-new{color:var(--ziggo)}
+  .euro-save{color:var(--green)}
+  .callout{margin-top:14px;border-radius:12px;padding:14px;text-align:center;font-weight:800;font-size:17px}
+  .callout.save{background:var(--green-bg);color:var(--green)}
+  .callout.loss{background:var(--red-bg);color:var(--red)}
+
+  /* ===== Sticky actions ===== */
+  .actionbar{
+    position:fixed;left:0;right:0;bottom:0;z-index:30;
+    background:color-mix(in srgb,var(--card) 92%,transparent);
+    backdrop-filter:blur(8px);border-top:1px solid var(--line);
+    padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+    display:flex;gap:10px;max-width:520px;margin:0 auto;
+  }
+  button{font-family:inherit;cursor:pointer;border:none}
+  .btn{flex:1;height:54px;border-radius:14px;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn-primary{background:var(--ziggo);color:#fff;flex:2}
+  .btn-primary:active{background:var(--ziggo-dark)}
+  .btn-ghost{background:var(--soft);color:var(--ink)}
+  .btn-ghost:active{filter:brightness(.95)}
+
+  .client-only{display:none}
+  body.client-view .inputs-only{display:none}
+  body.client-view .client-only{display:block}
+
+  .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+  .note{font-size:12px;color:var(--muted);margin:2px 0 0;text-align:center}
+
+  #confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
+</style>
+</head>
+<body>
+<header>
+  <div class="brandrow">
+    <svg class="ziggo-logo" viewBox="0.143 316.628 593.85 206.554" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ziggo"><path d="M191.212 490.321a12.138 12.138 0 0 1 3.566 8.607c0 3.715-1.663 6.707-3.563 8.608-3.626 3.62-8.56 7.39-15.007 10.057a45.808 45.808 0 0 1-17.602 3.495H46.143c-12.703 0-24.202-5.146-32.527-13.47C5.291 499.293.143 487.795.143 475.089V362.622c0-12.703 5.146-24.201 13.473-32.524 8.324-8.322 19.824-13.47 32.527-13.47H158.605a45.821 45.821 0 0 1 17.603 3.49c7.434 3.081 12.188 6.88 16.776 11.833 1.827 1.972 3.566 4.89 3.566 8.608 0 3.114-1.19 6.229-3.566 8.607a12.141 12.141 0 0 1-8.607 3.566 12.235 12.235 0 0 1-8.607-3.566c-3.244-3.247-5.024-4.914-8.744-6.489a21.515 21.515 0 0 0-8.419-1.705H46.143c-5.971 0-11.384 2.428-15.304 6.352-3.919 3.918-6.348 9.329-6.348 15.299V475.09c0 5.976 2.429 11.385 6.348 15.303 3.92 3.921 9.333 6.352 15.304 6.352H158.605c2.982 0 5.828-.604 8.419-1.705a22.018 22.018 0 0 0 6.973-4.718 12.22 12.22 0 0 1 8.608-3.564 12.13 12.13 0 0 1 8.607 3.563zm-32.965-14.489c-.438-8.879-6.437-22.549-21.515-24.346H83.089l61.804-59.167c2.609-2.49 8.466-10.932 4.296-20.016-3.35-7.304-8.959-10.417-18.762-10.417h-76.99c.314 10.214 5.411 22.408 18.948 24.591h43.993L51.362 447.58c-2.638 2.532-6.976 10.315-3.552 18.22 3.09 7.124 8.297 10.032 17.975 10.032h92.462zm176.127-55.745v45.34c0 16.772-5.132 31.355-16.769 42.987-10.459 10.463-23.676 14.768-38.188 14.768-28.457 0-43.118-21.988-43.118-21.988 7.651-7.651 18.293-12.3 28.712-6.058 1.752 1.048 7.005 3.917 14.522 3.917 26.337 0 30.624-23.535 30.624-30.541-9.124 5.516-19.427 8.261-30.866 8.267h-.015c-14.882-.006-27.934-4.71-38.791-13.994l-.143-.123c-10.654-10.217-16.105-22.819-16.196-37.471-.072-3.009-.072-12.648 0-14.889.034-14.404 5.482-26.958 16.196-37.218 10.817-10.36 23.919-15.616 38.933-15.62h.013c19.953 0 34.602 9.878 41.375 18.093 1.728 2.091 2.729 4.786 2.729 7.707 0 3.382-1.366 6.446-3.584 8.665a12.221 12.221 0 0 1-8.666 3.586c-3.349 0-6.552-1.4-8.589-3.522-7.601-7.903-14.829-10.396-23.27-10.397-8.44.001-15.475 2.817-21.505 8.604-5.991 5.649-8.817 12.073-8.901 20.243-.134 3.575-.134 11.175-.005 14.606.067 8.371 2.881 14.89 8.856 20.614 6.228 5.685 13.297 8.471 21.556 8.475 8.259-.004 15.33-2.79 21.61-8.526 3.276-3.144 5.603-6.542 7.037-10.364 1.152-3.069 3.561-9.473 11.707-12.723 6.864-2.732 14.736-2.438 14.736-2.438zm115.028 2.439c-8.146 3.248-10.553 9.65-11.706 12.722-1.437 3.821-3.765 7.222-7.042 10.364-6.275 5.735-13.347 8.521-21.607 8.525-8.261-.004-15.322-2.79-21.555-8.474-5.979-5.724-8.789-12.242-8.858-20.614-.126-3.434-.126-11.031.009-14.606.082-8.171 2.904-14.594 8.898-20.244 6.027-5.788 13.064-8.604 21.506-8.604 8.438.001 15.669 2.494 23.267 10.397 2.038 2.123 5.242 3.522 8.593 3.522 3.385 0 6.45-1.371 8.662-3.586a12.218 12.218 0 0 0 3.589-8.665c0-2.919-1.008-5.614-2.729-7.708-6.78-8.216-21.425-18.093-41.375-18.093h-.014c-15.017.004-28.113 5.26-38.933 15.62-10.717 10.26-16.163 22.814-16.195 37.218-.077 2.241-.077 11.88 0 14.888.09 14.652 5.54 27.256 16.195 37.473l.139.123c10.859 9.284 23.911 13.988 38.794 13.993h.012c11.439-.005 21.739-2.75 30.864-8.267 0 7.005-4.289 30.541-30.623 30.541-7.517 0-12.773-2.868-14.524-3.916-10.418-6.242-21.062-1.596-28.711 6.057 0 0 14.66 21.988 43.122 21.988 14.51 0 27.725-4.304 38.188-14.767 11.638-11.633 16.765-26.216 16.765-42.988v-45.341c-.006.003-7.873-.291-14.731 2.442zM593.937 410.4c-.033-14.496-5.482-27.053-16.191-37.317-10.821-10.361-23.925-15.616-38.944-15.62H538.789c-15.014.004-28.11 5.26-38.934 15.62-10.712 10.26-16.158 22.814-16.194 37.218-.073 2.24-.073 11.88 0 14.888.092 14.651 5.546 27.255 16.194 37.472l.145.123c10.854 9.284 23.907 13.989 38.789 13.994h.016c14.869-.005 27.927-4.71 38.798-13.989l.144-.128c10.649-10.217 16.097-22.823 16.19-37.415.074-3.064.074-12.704 0-14.846m-55.139 43.738c-8.257-.004-15.322-2.79-21.556-8.475-5.975-5.725-8.789-12.241-8.854-20.614-.132-3.433-.132-11.031.004-14.606.086-8.17 2.909-14.594 8.898-20.243 6.031-5.789 13.064-8.604 21.507-8.604 8.44.001 15.475 2.817 21.529 8.631 5.976 5.623 8.798 12.047 8.889 20.295.114 3.344.163 10.908 0 14.623-.074 8.278-2.895 14.802-8.808 20.468-6.278 5.735-13.349 8.522-21.609 8.525m-334.179-92.252c-12.766.023-24.35 10.728-24.35 22.21v91.736c12.766-.028 24.35-10.729 24.35-22.21v-91.736z" fill="#f5751f"/></svg>
+    <span class="spacer"></span>
+    <button class="icon-btn" id="themeBtn" title="Donkere modus">🌙</button>
+  </div>
+  <h1>Besparingscheck</h1>
+  <p class="sub-editor">Vul de bedragen in — alles rekent live mee over 24 maanden</p>
+</header>
+
+<main>
+  <!-- ===== BIG RESULT (altijd zichtbaar) ===== -->
+  <div id="bigResult" class="bigresult save">
+    <p class="lbl" id="bigLbl">Totale besparing over 24 maanden</p>
+    <p class="amount" id="totalSaveBig">€ 0</p>
+    <p class="sub" id="avgSaveBig">Gemiddeld € 0 per maand</p>
+    <div class="thermo">
+      <div class="bar-row">
+        <span class="tag">Nu</span>
+        <span class="track"><span class="fill now" id="barNow"></span></span>
+        <span class="amt" id="barNowAmt">€ 0</span>
+      </div>
+      <div class="bar-row">
+        <span class="tag">Nieuw</span>
+        <span class="track"><span class="fill new" id="barNew"></span></span>
+        <span class="amt" id="barNewAmt">€ 0</span>
+      </div>
+    </div>
+    <div class="funline" id="funline" style="display:none"></div>
+  </div>
+
+  <!-- ===== TABS ===== -->
+  <div class="tabs inputs-only">
+    <button class="tab active" data-i="0"><small>Stap 1</small>Nu</button>
+    <button class="tab" data-i="1"><small>Stap 2</small>Nieuw</button>
+    <button class="tab" data-i="2"><small>Stap 3</small>Contract</button>
+  </div>
+
+  <div id="panels" class="inputs-only">
+    <!-- PANEL 1 -->
+    <div class="panel active">
+      <section class="card">
+        <h2><span class="num">1</span> Huidige kosten klant</h2>
+        <div class="field">
+          <label>Huidig internet / tv / provider (per maand)</label>
+          <div class="input-euro"><input type="number" id="curInternet" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
+        </div>
+
+        <div class="toggle-row">
+          <span class="tl">📱 Mobiel abonnement?</span>
+          <label class="switch"><input type="checkbox" id="curHasMobile"><span class="slider"></span></label>
+        </div>
+        <div class="collapsible" id="curMobileWrap">
+          <div class="row">
+            <div class="field">
+              <label>Prijs mobiel abonnement</label>
+              <div class="input-euro"><input type="number" id="curMobilePrice" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
+            </div>
+            <div class="field" style="flex:0 0 92px">
+              <label>Aantal</label>
+              <input class="plain" type="number" id="curMobileCount" inputmode="numeric" placeholder="0" min="0" step="1">
+            </div>
+          </div>
+          <div class="chips" data-target="curMobileCount">
+            <button type="button" class="chip" data-v="1">1×</button>
+            <button type="button" class="chip" data-v="2">2×</button>
+            <button type="button" class="chip" data-v="4">Gezin 4×</button>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <span class="tl">➕ Overige maandkosten?</span>
+          <label class="switch"><input type="checkbox" id="curHasOther"><span class="slider"></span></label>
+        </div>
+        <div class="collapsible" id="curOtherWrap">
+          <div class="field">
+            <label>Overige maandelijkse kosten</label>
+            <div class="input-euro"><input type="number" id="curOther" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
+          </div>
+        </div>
+
+        <div class="subtotal"><span>Totaal nu per maand</span><span class="val" id="curTotal">€ 0,00</span></div>
+      </section>
+    </div>
+
+    <!-- PANEL 2 -->
+    <div class="panel">
+      <section class="card">
+        <h2><span class="num">2</span> Nieuwe kosten Ziggo / Vodafone</h2>
+        <div class="field">
+          <label>Ziggo internet / tv (per maand)</label>
+          <div class="input-euro"><input type="number" id="newInternet" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
+        </div>
+
+        <div class="toggle-row">
+          <span class="tl">📱 Vodafone mobiel?</span>
+          <label class="switch"><input type="checkbox" id="newHasMobile"><span class="slider"></span></label>
+        </div>
+        <div class="collapsible" id="newMobileWrap">
+          <div class="row">
+            <div class="field">
+              <label>Vodafone mobiel (per abonnement)</label>
+              <div class="input-euro"><input type="number" id="newMobilePrice" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
+            </div>
+            <div class="field" style="flex:0 0 92px">
+              <label>Aantal</label>
+              <input class="plain" type="number" id="newMobileCount" inputmode="numeric" placeholder="0" min="0" step="1">
+            </div>
+          </div>
+          <div class="chips" data-target="newMobileCount">
+            <button type="button" class="chip" data-v="1">1×</button>
+            <button type="button" class="chip" data-v="2">2×</button>
+            <button type="button" class="chip" data-v="4">Gezin 4×</button>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <span class="tl">➕ Combivoordeel / extra korting?</span>
+          <label class="switch"><input type="checkbox" id="newHasExtra"><span class="slider"></span></label>
+        </div>
+        <div class="collapsible" id="newExtraWrap">
+          <div class="field">
+            <label>Combivoordeel / extra korting (per maand)</label>
+            <div class="input-euro"><input type="number" id="newDiscount" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
+            <p class="hint">Wordt afgetrokken van de nieuwe maandprijs</p>
+          </div>
+        </div>
+
+        <div class="subtotal"><span>Normale nieuwe prijs / maand</span><span class="val" id="newTotal">€ 0,00</span></div>
+      </section>
+    </div>
+
+    <!-- PANEL 3 -->
+    <div class="panel">
+      <section class="card">
+        <h2><span class="num">3</span> Contract &amp; korting</h2>
+        <div class="seg" id="contractSeg">
+          <button type="button" class="seg-btn active" data-c="2j">2-jarig<small>12 mnd 50% · over 24 mnd</small></button>
+          <button type="button" class="seg-btn" data-c="1j">1-jarig<small>9 mnd 50% · over 12 mnd</small></button>
+        </div>
+        <p class="hint" id="contractInfo"></p>
+        <div class="schedule">
+          <div class="srow"><span class="lab" id="schedDiscLab">Kortingsperiode</span><span class="val" id="schedDiscVal">€ 0 p/m</span></div>
+          <div class="srow"><span class="lab" id="schedNormLab">Daarna</span><span class="val" id="schedNormVal">€ 0 p/m</span></div>
+        </div>
+        <details>
+          <summary>⚙️ Handmatig aanpassen</summary>
+          <div class="row">
+            <div class="field">
+              <label>Maanden korting</label>
+              <input class="plain" type="number" id="discMonths" inputmode="numeric" placeholder="12" min="0" max="24" step="1">
+            </div>
+            <div class="field">
+              <label>Prijs tijdens korting</label>
+              <div class="input-euro"><input type="number" id="discPrice" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Maanden normale prijs</label>
+              <input class="plain ro" type="number" id="normMonths" placeholder="12" readonly>
+            </div>
+            <div class="field">
+              <label>Prijs na korting</label>
+              <div class="input-euro"><input type="number" id="normPrice" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
+            </div>
+          </div>
+          <p class="hint">Handmatige wijzigingen overschrijven de automatische berekening tot je opnieuw een contract kiest.</p>
+        </details>
+      </section>
+    </div>
+  </div>
+
+  <!-- ===== KLANTOVERZICHT (alleen in klantweergave) ===== -->
+  <section class="card client-only" id="summaryCard">
+    <h2><span class="num">★</span> Overzicht voor de klant</h2>
+    <p class="sline" id="sShort1"></p>
+    <p class="sline" id="sShort2"></p>
+    <div class="callout save" id="callout">✅ U bespaart geld door over te stappen!</div>
+    <details id="moreInfo">
+      <summary>ℹ️ Meer info</summary>
+      <p class="line">U betaalt nu <b id="fNow">€ 0</b> per maand.</p>
+      <p class="line">Bij Ziggo / Vodafone betaalt u de eerste <span id="fDiscMonths">12</span> maanden <b id="fDisc">€ 0</b> per maand.</p>
+      <p class="line" id="fLineNorm">Daarna betaalt u <b id="fNorm">€ 0</b> per maand.</p>
+      <p class="line">Over <span id="fHorizon">24</span> maanden bespaart u in totaal <b id="fTotal">€ 0</b>.</p>
+      <p class="line">Gemiddeld bespaart u <b id="fAvg">€ 0</b> per maand.</p>
+    </details>
+  </section>
+
+  <p class="note inputs-only">Bedragen zijn indicatief en dienen ter illustratie tijdens het gesprek.</p>
+</main>
+
+<div class="actionbar">
+  <button class="btn btn-ghost" id="resetBtn">↺ Reset</button>
+  <button class="btn btn-primary" id="viewBtn">👁 Toon klantoverzicht</button>
+</div>
+
+<canvas id="confetti"></canvas>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const num = id => { const v = parseFloat($(id).value); return isNaN(v) ? 0 : v; };
+  const int = id => { const v = parseInt($(id).value,10); return isNaN(v) ? 0 : v; };
+  const eur = (n, dec) => '€ ' + n.toLocaleString('nl-NL',{minimumFractionDigits:dec?2:0,maximumFractionDigits:dec?2:0});
+
+  const inputs = ['curInternet','curMobilePrice','curMobileCount','curOther',
+    'newInternet','newMobilePrice','newMobileCount','newDiscount',
+    'discMonths','discPrice','normPrice'];
+
+  let normPriceTouched = false;
+  let discTouched = false;
+  let contract = '2j';
+  $('normPrice').addEventListener('input', ()=>{ normPriceTouched = true; });
+  ['discMonths','discPrice'].forEach(id => $(id).addEventListener('input', ()=>{ discTouched = true; }));
+
+  let state = {};
+
+  /* ---------- Count-up animatie ---------- */
+  function animateValue(el, to, dec, dur){
+    dur = dur || 450;
+    const from = (el._display != null) ? el._display : 0;
+    const start = performance.now();
+    cancelAnimationFrame(el._raf);
+    const step = now => {
+      const t = Math.min(1, (now - start) / dur);
+      const e = 1 - Math.pow(1 - t, 3);
+      const v = from + (to - from) * e;
+      el._display = v;
+      el.textContent = eur(v, dec);
+      if(t < 1) el._raf = requestAnimationFrame(step);
+      else { el._display = to; el.textContent = eur(to, dec); }
+    };
+    el._raf = requestAnimationFrame(step);
+  }
+
+  /* ---------- "Wat kun je ervan doen" ---------- */
+  function funText(a){
+    if(a <= 0) return '';
+    if(a >= 700) return '🏖️ Dat is zo\'n midweek weg met het gezin';
+    if(a >= 450) return '📱 Daar koop je een nieuwe smartphone van';
+    if(a >= 250) return '🧳 Genoeg voor een weekendje weg';
+    if(a >= 120) return '🛒 Zo\'n week boodschappen cadeau';
+    if(a >= 60)  return '🍝 Mooi een avondje uit eten';
+    if(a >= 20)  return '⛽ Een paar keer tanken';
+    return '☕ Elke maand een gratis kop koffie';
+  }
+
+  /* ---------- Berekening ---------- */
+  function calc(){
+    const newInternet = num('newInternet');
+    // Huidige kosten — mobiel & overige tellen alleen mee als de schakelaar aanstaat
+    const curMobile = $('curHasMobile').checked ? num('curMobilePrice')*int('curMobileCount') : 0;
+    const curOtherC = $('curHasOther').checked ? num('curOther') : 0;
+    const curMonthly = num('curInternet') + curMobile + curOtherC;
+    // Nieuwe kosten
+    const newMobile = $('newHasMobile').checked ? num('newMobilePrice')*int('newMobileCount') : 0;
+    const newExtra  = $('newHasExtra').checked ? num('newDiscount') : 0;
+    const newMonthly = Math.max(0, newInternet + newMobile - newExtra);
+
+    if(!normPriceTouched){ $('normPrice').value = newMonthly ? newMonthly.toFixed(2) : ''; }
+    const normPrice = num('normPrice');
+
+    // Looptijd: 2-jarig = 24 mnd, 1-jarig = 12 mnd
+    const horizon = contract === '2j' ? 24 : 12;
+
+    // 50% korting op alléén het Ziggo internet/tv-deel (bij beide contracten), tenzij handmatig aangepast
+    let dMonths, dPrice;
+    if(!discTouched){
+      dMonths = contract === '2j' ? 12 : 9;
+      dPrice = Math.max(0, newMonthly - 0.5 * newInternet);
+      $('discMonths').value = dMonths;
+      $('discPrice').value = dPrice ? dPrice.toFixed(2) : '';
+    } else {
+      dMonths = Math.min(horizon, Math.max(0, int('discMonths')));
+      dPrice = num('discPrice');
+    }
+    const nMonths = Math.max(0, horizon - dMonths);
+    $('normMonths').value = nMonths;
+
+    // Uitleg + schema tonen
+    $('contractInfo').textContent = contract === '2j'
+      ? '✅ 12 maanden 50% korting op je Ziggo internet/tv, daarna 12 maanden normaal. (2-jarig contract, over 24 maanden)'
+      : '✅ 9 maanden 50% korting op je Ziggo internet/tv, daarna nog 3 maanden normaal. (1-jarig contract, over 12 maanden)';
+    $('schedDiscLab').textContent = 'Eerste ' + dMonths + ' mnd';
+    $('schedDiscVal').textContent = eur(dPrice, true) + ' p/m';
+    $('schedNormLab').textContent = 'Daarna ' + nMonths + ' mnd';
+    $('schedNormVal').textContent = eur(normPrice, true) + ' p/m';
+
+    const curTotal = curMonthly * horizon;
+    const newTotal = dMonths*dPrice + nMonths*normPrice;
+    const totalSave = curTotal - newTotal;
+    const avgSave = totalSave / horizon;
+
+    state = {curMonthly, newMonthly, horizon, dMonths, dPrice, normMonths:nMonths, normPrice, curTotal, newTotal, totalSave, avgSave};
+
+    // Subtotalen
+    $('curTotal').textContent = eur(curMonthly, true);
+    $('newTotal').textContent = eur(newMonthly, true);
+
+    const saving = totalSave >= 0;
+
+    // Big result
+    const big = $('bigResult');
+    big.className = 'bigresult ' + (saving ? 'save' : 'loss');
+    $('bigLbl').textContent = (saving ? 'Totale besparing over ' : 'Extra kosten over ') + horizon + ' maanden';
+    animateValue($('totalSaveBig'), Math.abs(totalSave), false, 350);
+    $('avgSaveBig').textContent = 'Gemiddeld ' + eur(Math.abs(avgSave),false) + ' per maand' + (saving ? ' voordeel' : ' duurder');
+
+    // Thermometer
+    const mx = Math.max(curTotal, newTotal, 1);
+    $('barNow').style.width = (curTotal/mx*100) + '%';
+    $('barNew').style.width = (newTotal/mx*100) + '%';
+    $('barNowAmt').textContent = eur(curTotal,false);
+    $('barNewAmt').textContent = eur(newTotal,false);
+
+    // Fun line
+    const ft = funText(totalSave);
+    const fl = $('funline');
+    if(ft){ fl.textContent = ft; fl.style.display = 'inline-block'; } else { fl.style.display = 'none'; }
+
+    // Klantoverzicht tekst
+    updateSummaryText();
+  }
+
+  function updateSummaryText(){
+    const s = state;
+    const avgNew = s.horizon ? s.newTotal / s.horizon : 0;
+    const saving = s.totalSave >= 0;
+
+    // Twee korte kernzinnen
+    $('sShort1').innerHTML = 'U betaalt nu <b>' + eur(s.curMonthly,false) +
+      '</b> per maand, bij Ziggo/Vodafone gemiddeld <b>' + eur(avgNew,false) + '</b>.';
+    $('sShort2').innerHTML = saving
+      ? 'Zo bespaart u <b class="euro-save">' + eur(s.totalSave,false) + '</b> over ' + s.horizon +
+        ' maanden — gemiddeld <b class="euro-save">' + eur(s.avgSave,false) + '</b> per maand.'
+      : 'U bent dan <b class="euro-new">' + eur(Math.abs(s.totalSave),false) + '</b> duurder over ' + s.horizon +
+        ' maanden — gemiddeld <b class="euro-new">' + eur(Math.abs(s.avgSave),false) + '</b> per maand.';
+
+    // Callout
+    const co = $('callout');
+    if(s.totalSave > 0.005){
+      co.className = 'callout save';
+      co.textContent = '✅ U bespaart ' + eur(s.totalSave,false) + ' door over te stappen!';
+    } else if(s.totalSave < -0.005){
+      co.className = 'callout loss';
+      co.textContent = '⚠️ Let op: u bent ' + eur(Math.abs(s.totalSave),false) + ' duurder uit.';
+    } else {
+      co.className = 'callout save'; co.textContent = 'De kosten blijven gelijk.';
+    }
+
+    // Volledige info (achter "Meer info")
+    $('fNow').textContent   = eur(s.curMonthly, true);
+    $('fDiscMonths').textContent = s.dMonths;
+    $('fDisc').textContent  = eur(s.dPrice, true);
+    $('fHorizon').textContent = s.horizon;
+    $('fNorm').textContent  = eur(s.normPrice, true);
+    $('fLineNorm').style.display = s.normMonths > 0 ? '' : 'none';
+    $('fTotal').textContent = eur(Math.abs(s.totalSave), true);
+    $('fAvg').textContent   = eur(Math.abs(s.avgSave), true);
+  }
+
+  inputs.forEach(id => $(id).addEventListener('input', calc));
+
+  /* ---------- Snelknoppen (chips) ---------- */
+  document.querySelectorAll('.chips').forEach(group=>{
+    const target = group.getAttribute('data-target');
+    group.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click', ()=>{
+        $(target).value = chip.getAttribute('data-v');
+        group.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+        chip.classList.add('active');
+        calc();
+      });
+    });
+  });
+
+  /* ---------- Slide-schakelaars (ja/nee) ---------- */
+  [['curHasMobile','curMobileWrap'],['curHasOther','curOtherWrap'],
+   ['newHasMobile','newMobileWrap'],['newHasExtra','newExtraWrap']].forEach(([cb,wrap])=>{
+    $(cb).addEventListener('change', ()=>{
+      $(wrap).classList.toggle('open', $(cb).checked);
+      calc();
+    });
+  });
+
+  /* ---------- Contractkeuze ---------- */
+  document.querySelectorAll('#contractSeg .seg-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      contract = btn.getAttribute('data-c');
+      document.querySelectorAll('#contractSeg .seg-btn').forEach(b=>b.classList.toggle('active', b===btn));
+      discTouched = false; normPriceTouched = false; // laat korting weer automatisch berekenen
+      calc();
+    });
+  });
+
+  /* ---------- Tabs + swipe ---------- */
+  const tabs = [...document.querySelectorAll('.tab')];
+  const panels = [...document.querySelectorAll('.panel')];
+  let tabIndex = 0;
+  function setTab(i){
+    i = Math.max(0, Math.min(panels.length-1, i));
+    tabIndex = i;
+    tabs.forEach((t,n)=>t.classList.toggle('active', n===i));
+    panels.forEach((p,n)=>p.classList.toggle('active', n===i));
+  }
+  tabs.forEach((t,i)=>t.addEventListener('click', ()=>setTab(i)));
+
+  const wrap = $('panels');
+  let sx=0, sy=0;
+  wrap.addEventListener('touchstart', e=>{ sx=e.touches[0].clientX; sy=e.touches[0].clientY; }, {passive:true});
+  wrap.addEventListener('touchend', e=>{
+    const dx = e.changedTouches[0].clientX - sx;
+    const dy = e.changedTouches[0].clientY - sy;
+    if(Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy)*1.4){ setTab(tabIndex + (dx<0?1:-1)); }
+  }, {passive:true});
+
+  /* ---------- Confetti ---------- */
+  const cv = $('confetti'), cx = cv.getContext('2d');
+  let parts = [], raf = null;
+  function resize(){ cv.width = innerWidth; cv.height = innerHeight; }
+  addEventListener('resize', resize); resize();
+  function celebrate(){
+    if(navigator.vibrate) navigator.vibrate(35);
+    const colors = ['#ff6b00','#ffb066','#1fb85a','#ffffff','#ffd23f'];
+    for(let i=0;i<90;i++){
+      parts.push({
+        x: Math.random()*cv.width, y: -20 - Math.random()*cv.height*0.3,
+        r: 4 + Math.random()*5, c: colors[i%colors.length],
+        vx: -2 + Math.random()*4, vy: 2 + Math.random()*4,
+        rot: Math.random()*6, vr: -0.2 + Math.random()*0.4, life: 1
+      });
+    }
+    if(!raf) raf = requestAnimationFrame(tick);
+  }
+  function tick(){
+    cx.clearRect(0,0,cv.width,cv.height);
+    parts.forEach(p=>{
+      p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.rot += p.vr; p.life -= 0.008;
+      cx.save(); cx.translate(p.x,p.y); cx.rotate(p.rot); cx.globalAlpha = Math.max(0,p.life);
+      cx.fillStyle = p.c; cx.fillRect(-p.r/2,-p.r/2,p.r,p.r*1.6); cx.restore();
+    });
+    parts = parts.filter(p=>p.life>0 && p.y < cv.height+30);
+    if(parts.length){ raf = requestAnimationFrame(tick); } else { cx.clearRect(0,0,cv.width,cv.height); raf=null; }
+  }
+
+  /* ---------- Thema (licht/donker) ---------- */
+  function setTheme(dark){
+    document.body.setAttribute('data-theme', dark ? 'dark' : 'light');
+    $('themeBtn').textContent = dark ? '☀️' : '🌙';
+  }
+  setTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  $('themeBtn').addEventListener('click', ()=> setTheme(document.body.getAttribute('data-theme') !== 'dark'));
+
+  /* ---------- Reset ---------- */
+  $('resetBtn').addEventListener('click', ()=>{
+    if(!confirm('Nieuwe berekening starten? Alle velden worden gewist.')) return;
+    inputs.forEach(id => { $(id).value=''; });
+    $('normMonths').value = '';
+    document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+    document.querySelectorAll('.toggle-row input[type=checkbox]').forEach(c=>{ c.checked=false; });
+    document.querySelectorAll('.collapsible').forEach(w=>w.classList.remove('open'));
+    normPriceTouched = false; discTouched = false; contract = '2j';
+    document.querySelectorAll('#contractSeg .seg-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-c')==='2j'));
+    document.body.classList.remove('client-view');
+    $('viewBtn').textContent = '👁 Toon klantoverzicht';
+    setTab(0);
+    calc();
+    scrollTo({top:0, behavior:'smooth'});
+  });
+
+  /* ---------- Klantoverzicht tonen (met count-up + confetti) ---------- */
+  $('viewBtn').addEventListener('click', ()=>{
+    const on = document.body.classList.toggle('client-view');
+    $('viewBtn').textContent = on ? '✏️ Terug naar invoer' : '👁 Toon klantoverzicht';
+    if(on){
+      // count-up vanaf 0 voor het wow-moment
+      $('totalSaveBig')._display = 0; animateValue($('totalSaveBig'), Math.abs(state.totalSave), false, 750);
+      if(state.totalSave > 0.5) setTimeout(celebrate, 250);
+    }
+    scrollTo({top:0, behavior:'smooth'});
+  });
+
+  calc();
+
+  /* ---------- Service worker (offline / installeerbaar) ---------- */
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', ()=> navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  }
+})();
+</script>
+</body>
+</html>
