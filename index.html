@@ -294,10 +294,14 @@
   .btn-next{background:var(--ziggo);color:#fff}
   .btn-next:active{background:var(--ziggo-dark)}
   .btn-back{background:var(--soft);color:var(--ink)}
-  .btn-wa{background:#25d366;color:#fff}
-  .btn-wa:active{filter:brightness(.93)}
   .btn-deal{background:var(--green);color:#fff}
   .btn-deal:active{filter:brightness(.93)}
+  .share-mini{
+    display:block;margin:12px auto 0;background:none;border:none;
+    color:var(--muted);font-size:12px;font-weight:700;padding:6px 8px;opacity:.75;
+    text-decoration:underline;text-underline-offset:2px;
+  }
+  .share-mini:active{color:var(--ink);opacity:1}
 
   /* Dagteller */
   .tally{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.13);color:#fff;border-radius:999px;padding:8px 12px;font-size:14px;font-weight:800}
@@ -508,7 +512,7 @@
       <p class="line">Gemiddeld bespaart u <b id="fAvg">€ 0</b> per maand.</p>
     </details>
     <button class="btn-next" id="toStepsBtn">Zo werkt de overstap →</button>
-    <button class="btn-next btn-wa js-share">💬 Deel via WhatsApp</button>
+    <button class="share-mini js-share">Deel via WhatsApp</button>
   </section>
 
   <!-- ===== STAPPENPLAN (klantweergave, pagina 2) ===== -->
@@ -527,7 +531,7 @@
       <div class="promise"><span class="pi">💶</span><span>Geen dag dubbele kosten — naadloze overstap</span></div>
     </div>
     <button class="btn-next btn-deal" id="dealBtn">✓ Deal gesloten</button>
-    <button class="btn-next btn-wa js-share">💬 Deel via WhatsApp</button>
+    <button class="share-mini js-share">Deel via WhatsApp</button>
     <button class="btn-back" id="backToOverview">← Terug naar overzicht</button>
   </section>
 
