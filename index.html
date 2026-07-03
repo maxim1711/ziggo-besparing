@@ -713,11 +713,14 @@
   $('backToOverview').addEventListener('click', ()=>{ document.body.classList.remove('show-steps'); scrollTo({top:0, behavior:'smooth'}); });
 
   /* ---------- Deel via WhatsApp ---------- */
+  const INTRO = 'Hey, Maxim van Ziggo hier 👋 Hierbij je besparing. Voor vragen ben ik bereikbaar via dit nummer.';
   function shareText(){
     const s = state;
     const avgNew = s.horizon ? s.newTotal/s.horizon : 0;
     const saving = s.totalSave >= 0;
     return [
+      INTRO,
+      '',
       'Uw Ziggo / Vodafone berekening',
       '',
       'Nu: ' + eur(s.curMonthly,true) + ' per maand',
@@ -797,7 +800,7 @@
     }catch(e){ file = null; }
     try{
       if(file && navigator.canShare && navigator.canShare({ files:[file] })){
-        await navigator.share({ files:[file], text:'Uw persoonlijke Ziggo / Vodafone berekening' }); return;
+        await navigator.share({ files:[file], text: INTRO }); return;
       }
       if(navigator.share){ await navigator.share({ title:'Ziggo / Vodafone besparing', text: shareText() }); return; }
       if(blob){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ziggo-besparing.png'; a.click(); return; }
