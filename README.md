@@ -47,6 +47,15 @@ De rekenregels staan in `src/engine/essent.ts`, de plak- en importregels in `src
 2. **Nieuw pakket** – tik op een snelheid en een tv-pakket en kies de actie. Bellen, extra tv, sport/entertainment en Vodafone staan in uitklapbare secties. De prijs rechts rekent direct mee.
 3. **Toon aan klant** – één rustig scherm met pakket, prijs nu, prijs daarna, contractduur en het verschil over 24 maanden. "Bekijk berekening" toont de volledige opbouw.
 
+De klantpresentatie heeft twee schermen: **Uw aanbod** en **Overstappen zonder gedoe**, met Vorige/Volgende (geen automatische doorloop). Het tweede scherm volgt de korte checklist in stap 2:
+
+- *Overstapservice van toepassing?* Ja / Nee / Nog controleren — alleen bij **Ja** toont het scherm de beloften "Wij regelen uw overstap" en "Geen moment zonder internet". Anders staat er "Wij helpen u met de stappen voor een soepele overstap" en dat de klant zelf opzegt.
+- *Installatiehulp gewenst?* Ja / Nee / Bespreken — alleen bij **Ja** staat er "Alles professioneel geïnstalleerd".
+
+De voorwaardenteksten en uw eigen geheugensteun voor de Overstapservice past u aan bij **Instellingen → Ziggo: overstappen en installatie**.
+
+Is het nieuwe abonnement duurder, dan toont het aanbodscherm "Gemiddeld € x meer per maand" met direct daaronder het totaal over de periode, en de uitleg dat het een gemiddelde is. De actieprijs en de prijs daarna blijven ernaast staan.
+
 24 maanden is overal de standaard. Een contract van 12 maanden, een tweede optie of volledig handmatige prijzen staan in stap 2 onder **Geavanceerd**.
 
 ## Prijzen zelf bijwerken

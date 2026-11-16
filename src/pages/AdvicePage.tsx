@@ -15,6 +15,7 @@ import { Field, Input, MoneyInput, NumberInput, Segmented, Select, Switch } from
 import { findPrice, formatSpeed, isVerifiedPrice, promotionBlockedReason, staleCount, togglePromotion, type ExtraCategory, type ExtraService } from '@/engine/pricing'
 import { formatDateNl } from '@/engine/dates'
 import { priceStory } from '@/engine/customerView'
+import { differenceView } from '@/engine/switching'
 import { newId } from '@/engine/defaults'
 import { formatEuro } from '@/engine/money'
 import type { Offer } from '@/engine/types'
@@ -618,7 +619,7 @@ function Summary() {
   const { active } = useComparison()
   const pricing = useData((s) => s.pricing)
   const updatePricing = useData((s) => s.updatePricing)
-  const { builds, activeIndex, setSelection } = useDraft()
+  const { builds, activeIndex, setSelection, switching, setSwitching } = useDraft()
   const [calc, setCalc] = useState(false)
   if (!active) {
     return (
@@ -696,6 +697,7 @@ function Summary() {
             <AnimatedMoney cents={res.cents} decimals="auto" className={cn('text-3xl font-semibold tracking-tight', res.tone === 'good' && 'text-good', res.tone === 'warn' && 'text-warn')} />
           </div>
           {!view.result.currentKnown && <p className="-mt-2 text-xs text-muted-foreground">Vul in stap 1 het huidige maandbedrag in om het verschil te zien.</p>}
+          {res.tone === 'warn' && <p className="tnum -mt-2 text-sm text-muted-foreground">{differenceView(view.result).headline}{differenceView(view.result).includesOneTime ? ' (incl. eenmalige kosten)' : ''}</p>}
         </>
       )}
 
@@ -716,6 +718,21 @@ function Summary() {
         <button type="button" onClick={() => setCalc(true)} className="mx-auto block min-h-[44px] text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
           Bekijk berekening
         </button>
+      )}
+
+      {!active.blocked && (
+        <div className="space-y-3 rounded-2xl bg-muted/60 p-3">
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Voor het scherm “Overstappen zonder gedoe”</div>
+          <div>
+            <div className="mb-1 text-[13px] font-medium">Overstapservice van toepassing?</div>
+            <Segmented size="sm" aria-label="Overstapservice van toepassing?" value={switching.overstap} onChange={(overstap) => setSwitching({ overstap })} options={[{ value: 'ja', label: 'Ja' }, { value: 'nee', label: 'Nee' }, { value: 'controleren', label: 'Nog controleren' }]} />
+          </div>
+          <div>
+            <div className="mb-1 text-[13px] font-medium">Installatiehulp gewenst?</div>
+            <Segmented size="sm" aria-label="Installatiehulp gewenst?" value={switching.install} onChange={(install) => setSwitching({ install })} options={[{ value: 'ja', label: 'Ja' }, { value: 'nee', label: 'Nee' }, { value: 'bespreken', label: 'Bespreken' }]} />
+          </div>
+          {switching.overstap !== 'ja' && <p className="text-xs text-muted-foreground">Zonder “Ja” belooft het klantscherm niet dat de opzegging wordt geregeld.</p>}
+        </div>
       )}
 
       {!active.blocked && (

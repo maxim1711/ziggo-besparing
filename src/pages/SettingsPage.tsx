@@ -1,10 +1,12 @@
-import { Download, Flame, Lock, ShieldCheck, Smartphone, Trash2, Upload, User } from 'lucide-react'
+import { Download, Flame, Handshake, Lock, ShieldCheck, Smartphone, Trash2, Upload, User } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Page, PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, CardHeader } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
-import { Field, Input, MoneyInput, Segmented } from '@/components/ui/inputs'
+import { Field, Input, MoneyInput, Segmented, Textarea } from '@/components/ui/inputs'
+import { formatDateNl } from '@/engine/dates'
+import { SWITCH_SOURCES } from '@/engine/switching'
 import { todayIso } from '@/engine/dates'
 import { downloadFile } from '@/lib/utils'
 import { useData } from '@/store/data'
@@ -67,6 +69,33 @@ export default function SettingsPage() {
             <Field label="Weekdoel provisie" hint="0 = geen doel; Ziggo en Essent samen">
               <MoneyInput value={settings.weeklyTargetCents} onChange={(c) => updateSettings({ weeklyTargetCents: c ?? 0 })} emptyAsZero />
             </Field>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader icon={<Handshake />} title="Ziggo: overstappen en installatie" description="Teksten voor het tweede klantscherm. Werk ze bij als de regels van Ziggo veranderen." action={data.switchTexts.verifiedOn ? <Badge tone="good">Gecontroleerd {formatDateNl(data.switchTexts.verifiedOn)}</Badge> : <Badge tone="warn">Niet gecontroleerd</Badge>} />
+          <div className="space-y-4 p-5">
+            <Field label="Wanneer geldt de Overstapservice? (alleen voor u)" hint="Uw eigen geheugensteun bij de keuze Ja / Nee / Nog controleren. Nooit zichtbaar voor de klant.">
+              <Textarea value={data.switchTexts.advisorRules} onChange={(e) => data.setSwitchTexts({ advisorRules: e.target.value })} />
+            </Field>
+            <Field label="Voorwaarden Overstapservice (zichtbaar voor de klant onder “Voorwaarden”)">
+              <Textarea value={data.switchTexts.overstapConditions} onChange={(e) => data.setSwitchTexts({ overstapConditions: e.target.value })} />
+            </Field>
+            <Field label="Voorwaarden installatiehulp (zichtbaar voor de klant onder “Voorwaarden”)">
+              <Textarea value={data.switchTexts.installConditions} onChange={(e) => data.setSwitchTexts({ installConditions: e.target.value })} />
+            </Field>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={() => data.setSwitchTexts({ verifiedOn: todayIso() })}>Vandaag gecontroleerd</Button>
+              <span className="text-xs text-muted-foreground">
+                Bronnen:{' '}
+                {SWITCH_SOURCES.map((u, i) => (
+                  <a key={u} href={u} target="_blank" rel="noreferrer" className="text-primary underline">
+                    {i ? ', ' : ''}
+                    {u.replace('https://www.', '').slice(0, 44)}
+                  </a>
+                ))}
+              </span>
+            </div>
           </div>
         </Card>
 

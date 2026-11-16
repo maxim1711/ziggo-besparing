@@ -5,6 +5,7 @@ import type { CommissionSettings } from '@/engine/commission'
 import type { Catalog as CatalogV2 } from '@/engine/catalog'
 import { addMissingSeedItems, migrateCatalogV2, PRICING_SCHEMA_VERSION, type PricingCatalog } from '@/engine/pricing'
 import { seedPricing } from '@/engine/pricingSeed'
+import { defaultSwitchTexts, type SwitchTexts } from '@/engine/switching'
 import type { ComparisonPeriod, CurrentSubscription, Offer, ProductKind, VodafoneCombo } from '@/engine/types'
 
 export interface Settings {
@@ -55,6 +56,9 @@ interface DataState {
   offers: Offer[]
   /** Prijsconfiguratie: pakketprijzen, extra's, acties en cadeaus. */
   pricing: PricingCatalog
+  /** Teksten en voorwaarden voor het scherm "Overstappen zonder gedoe". */
+  switchTexts: SwitchTexts
+  setSwitchTexts: (patch: Partial<SwitchTexts>) => void
   updatePricing: (fn: (c: PricingCatalog) => PricingCatalog) => void
   importPricing: (pricing: PricingCatalog) => void
   /** Zet de basisprijzen terug; eigen salesacties en cadeaus blijven staan. */
@@ -93,6 +97,8 @@ export const useData = create<DataState>()(
     (set) => ({
       offers: [],
       pricing: seedPricing(),
+      switchTexts: defaultSwitchTexts(),
+      setSwitchTexts: (patch) => set((s) => ({ switchTexts: { ...s.switchTexts, ...patch } })),
       settings: defaultSettings(),
       consultations: [],
       followUps: [],

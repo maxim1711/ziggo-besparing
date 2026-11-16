@@ -8,6 +8,7 @@ import { todayIso } from '@/engine/dates'
 import { emptyCombo, emptyCurrent, newId } from '@/engine/defaults'
 import { buildInsights, buildSummary } from '@/engine/insights'
 import { rankOptions, type OptionBadge } from '@/engine/ranking'
+import { defaultChecklist, type SwitchChecklist } from '@/engine/switching'
 import type { ComparisonPeriod, ComparisonResult, CurrentSubscription, Insight, Offer, VodafoneCombo } from '@/engine/types'
 import { useData, type SavedConsultation } from './data'
 
@@ -34,6 +35,9 @@ interface DraftState {
   combo: VodafoneCombo
   period: ComparisonPeriod
   startDate: string
+  /** Snelle checklist voor het tweede presentatiescherm. */
+  switching: SwitchChecklist
+  setSwitching: (patch: Partial<SwitchChecklist>) => void
   setStep: (step: 1 | 2) => void
   setCurrent: (patch: Partial<CurrentSubscription>) => void
   setSelection: (patch: Partial<Selection>) => void
@@ -57,6 +61,7 @@ const fresh = () => ({
   combo: emptyCombo(),
   period: useData.getState().settings.defaultPeriod,
   startDate: todayIso(),
+  switching: defaultChecklist(),
 })
 
 const patchActive = (s: DraftState, fn: (b: Build) => Build) => ({ builds: s.builds.map((b, i) => (i === s.activeIndex ? fn(b) : b)) })
@@ -75,6 +80,7 @@ export const useDraft = create<DraftState>()(
             builds: s.builds.map((b) => (b.snapshot || b.selection.internetId ? b : { ...b, selection: { ...b.selection, tvId: s.current.hasTv ? (firstTv?.id ?? null) : null } })),
           }
         }),
+      setSwitching: (patch) => set((s) => ({ switching: { ...s.switching, ...patch } })),
       setCurrent: (patch) => set((s) => ({ current: { ...s.current, ...patch } })),
       setSelection: (patch) => set((s) => patchActive(s, (b) => ({ ...b, selection: { ...b.selection, ...patch } }))),
       setSnapshot: (snapshot) => set((s) => patchActive(s, (b) => ({ ...b, snapshot }))),
