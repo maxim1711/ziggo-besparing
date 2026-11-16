@@ -55,12 +55,12 @@ export function differenceView(r: ComparisonResult): DifferenceView {
 export type OverstapChoice = 'ja' | 'nee' | 'controleren'
 export type InstallChoice = 'ja' | 'nee' | 'bespreken'
 
-/** Snelle checklist van de adviseur; standaard staat alles op "nog niet bevestigd". */
+/** Snelle checklist van de adviseur. Standaard "Ja": beide diensten gelden volgens de adviseur altijd; per klant uit te zetten. */
 export interface SwitchChecklist {
   overstap: OverstapChoice
   install: InstallChoice
 }
-export const defaultChecklist = (): SwitchChecklist => ({ overstap: 'controleren', install: 'bespreken' })
+export const defaultChecklist = (): SwitchChecklist => ({ overstap: 'ja', install: 'ja' })
 
 /** Teksten en regels die de adviseur zelf kan bijwerken (Instellingen). */
 export interface SwitchTexts {

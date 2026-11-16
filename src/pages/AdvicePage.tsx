@@ -731,7 +731,7 @@ function Summary() {
             <div className="mb-1 text-[13px] font-medium">Monteursafspraak wordt geregeld?</div>
             <Segmented size="sm" aria-label="Monteursafspraak wordt geregeld?" value={switching.install} onChange={(install) => setSwitching({ install })} options={[{ value: 'ja', label: 'Ja' }, { value: 'nee', label: 'Nee' }, { value: 'bespreken', label: 'Bespreken' }]} />
           </div>
-          {(switching.overstap !== 'ja' || switching.install !== 'ja') && <p className="text-xs text-muted-foreground">Een belofte verschijnt alleen op het klantscherm als de bijbehorende keuze op “Ja” staat.</p>}
+          <p className="text-xs text-muted-foreground">{switching.overstap === 'ja' && switching.install === 'ja' ? 'Standaard Ja. Zet alleen bij een uitzondering iets anders.' : 'Let op: voor wat niet op “Ja” staat toont het klantscherm geen belofte.'}</p>
         </div>
       )}
 

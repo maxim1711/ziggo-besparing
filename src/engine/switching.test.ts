@@ -105,8 +105,9 @@ describe('"Overstappen zonder gedoe" — conditional claims', () => {
   const slide = (overstap: 'ja' | 'nee' | 'controleren', install: 'ja' | 'nee' | 'bespreken' = 'ja') => buildSwitchSlide({ overstap, install }, texts)
   const all = (s: ReturnType<typeof slide>) => JSON.stringify(s)
 
-  it('defaults to "not confirmed"', () => {
-    expect(defaultChecklist()).toEqual({ overstap: 'controleren', install: 'bespreken' })
+  it('defaults to both services applying, so the three promises show without extra taps', () => {
+    expect(defaultChecklist()).toEqual({ overstap: 'ja', install: 'ja' })
+    expect(buildSwitchSlide(defaultChecklist(), texts).cards.map((c) => c.heading)).toEqual(['Wij regelen uw overstap.', 'Geen seconde zonder internet.', 'Alles professioneel geïnstalleerd.'])
   })
   it('confirmed: exactly the advisor\'s three headings and descriptions', () => {
     const s = slide('ja')
