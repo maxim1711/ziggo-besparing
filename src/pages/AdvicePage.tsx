@@ -31,7 +31,7 @@ export function offerPriceLine(o: Offer): string {
 
 /* ---------- gedeelde bouwstenen ---------- */
 
-function Tile({ active, onClick, children, className, disabled, plain }: { active: boolean; onClick: () => void; children: React.ReactNode; className?: string; disabled?: boolean; plain?: boolean }) {
+export function Tile({ active, onClick, children, className, disabled, plain }: { active: boolean; onClick: () => void; children: React.ReactNode; className?: string; disabled?: boolean; plain?: boolean }) {
   return (
     <button
       type="button"
@@ -50,14 +50,14 @@ function Tile({ active, onClick, children, className, disabled, plain }: { activ
   )
 }
 
-const SectionTitle = ({ children, hint }: { children: React.ReactNode; hint?: string }) => (
+export const SectionTitle = ({ children, hint }: { children: React.ReactNode; hint?: string }) => (
   <div className="mb-3 flex items-baseline justify-between gap-3">
     <h2 className="text-[17px] font-semibold tracking-tight">{children}</h2>
     {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
   </div>
 )
 
-function More({ label, children, defaultOpen }: { label: string; children: React.ReactNode; defaultOpen?: boolean }) {
+export function More({ label, children, defaultOpen }: { label: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(!!defaultOpen)
   return (
     <div className="border-t pt-2">

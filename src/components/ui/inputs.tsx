@@ -1,6 +1,7 @@
 import * as React from 'react'
 import * as SwitchPrimitive from '@radix-ui/react-switch'
 import { centsToInput, parseEuroToCents } from '@/engine/money'
+import { parseRate, rateToInput } from '@/engine/essent'
 import { cn } from '@/lib/utils'
 
 const inputBase =
@@ -169,6 +170,52 @@ export function Switch({ checked, onCheckedChange, label, description, compact }
       <SwitchPrimitive.Root id={id} checked={checked} onCheckedChange={onCheckedChange} className="relative h-8 w-14 shrink-0 rounded-full bg-border transition-colors data-[state=checked]:bg-primary">
         <SwitchPrimitive.Thumb className="block size-6 translate-x-1 rounded-full bg-white shadow transition-transform data-[state=checked]:translate-x-7" />
       </SwitchPrimitive.Root>
+    </div>
+  )
+}
+
+/** Tarief per kWh of m³, tot vijf decimalen; slaat intern gehele honderdduizendsten van een euro op. */
+export function RateInput({ value, onChange, unit, placeholder = '0,00000', large, 'aria-label': ariaLabel }: { value: number | null; onChange: (r: number | null) => void; unit: string; placeholder?: string; large?: boolean; 'aria-label'?: string }) {
+  const [text, setText] = React.useState(() => rateToInput(value))
+  const [focused, setFocused] = React.useState(false)
+  const [invalid, setInvalid] = React.useState(false)
+  React.useEffect(() => {
+    if (!focused) setText(rateToInput(value))
+  }, [value, focused])
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+      <input
+        aria-label={ariaLabel}
+        inputMode="decimal"
+        enterKeyHint="done"
+        autoComplete="off"
+        placeholder={placeholder}
+        value={text}
+        aria-invalid={invalid}
+        onFocus={(e) => {
+          setFocused(true)
+          e.currentTarget.select()
+        }}
+        onBlur={() => {
+          setFocused(false)
+          setInvalid(false)
+        }}
+        onChange={(e) => {
+          const t = e.target.value
+          setText(t)
+          if (t.trim() === '') {
+            setInvalid(false)
+            onChange(null)
+            return
+          }
+          const r = parseRate(t)
+          setInvalid(r === null)
+          if (r !== null) onChange(r)
+        }}
+        className={cn(inputBase, 'tnum pl-8 pr-[70px]', large && 'h-14 text-xl font-semibold', invalid && 'border-red-400 focus:border-red-500 focus:ring-red-500/10')}
+      />
+      <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{unit}</span>
     </div>
   )
 }

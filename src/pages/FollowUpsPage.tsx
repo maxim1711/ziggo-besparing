@@ -13,6 +13,8 @@ import { formatEuro } from '@/engine/money'
 import { downloadFile } from '@/lib/utils'
 import { useData, type FollowUp, type FollowUpStatus } from '@/store/data'
 import { useDraft } from '@/store/draft'
+import { compareEnergyOffer } from '@/engine/essent'
+import { useEnergy, useEnergyDraft } from '@/store/energy'
 import { toast } from '@/store/toast'
 
 const csvCell = (s: string | null) => `"${(s ?? '').replace(/"/g, '""')}"`
@@ -21,6 +23,9 @@ export default function FollowUpsPage() {
   const navigate = useNavigate()
   const { followUps, consultations, upsertFollowUp, deleteFollowUp, clearFollowUps, deleteConsultation } = useData()
   const loadDraft = useDraft((s) => s.load)
+  const energySaved = useEnergy((s) => s.saved)
+  const deleteEnergySaved = useEnergy((s) => s.deleteComparison)
+  const loadEnergy = useEnergyDraft((s) => s.load)
   const [tab, setTab] = useState<'followups' | 'saved'>('followups')
   const [dialog, setDialog] = useState<{ open: boolean; item: FollowUp | null }>({ open: false, item: null })
   const [confirmAll, setConfirmAll] = useState(false)
@@ -63,7 +68,7 @@ export default function FollowUpsPage() {
           <strong>Privacy:</strong> wie persoonsgegevens op een apparaat bewaart, is daar zelf verantwoordelijk voor (AVG). Noteer zo weinig mogelijk, beveilig uw tablet met een code, en verwijder gegevens zodra u ze niet meer nodig heeft. Er wordt niets naar een server of derde partij gestuurd.
         </p>
       </div>
-      <Segmented className="mb-4 max-w-md" value={tab} onChange={setTab} options={[{ value: 'followups', label: `Opvolgingen (${followUps.length})` }, { value: 'saved', label: `Opgeslagen adviezen (${consultations.length})` }]} />
+      <Segmented className="mb-4 max-w-md" value={tab} onChange={setTab} options={[{ value: 'followups', label: `Opvolgingen (${followUps.length})` }, { value: 'saved', label: `Opgeslagen adviezen (${consultations.length + energySaved.length})` }]} />
 
       {tab === 'followups' &&
         (sorted.length === 0 ? (
@@ -126,12 +131,45 @@ export default function FollowUpsPage() {
         ))}
 
       {tab === 'saved' &&
-        (consultations.length === 0 ? (
+        (consultations.length + energySaved.length === 0 ? (
           <Card>
             <EmptyState icon={<Bookmark />} title="Geen opgeslagen adviezen" text="Tik in het adviesscherm op “Opslaan” om een vergelijking anoniem te bewaren." />
           </Card>
         ) : (
           <div className="space-y-3">
+            {energySaved.map((c) => {
+              const r = compareEnergyOffer(c.input)
+              return (
+                <Card key={c.id} className="flex flex-wrap items-center gap-4 p-4">
+                  <div className="min-w-[200px] flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-[16px] font-semibold">{c.label || `Energieadvies van ${formatDateNl(c.savedAt.slice(0, 10))}`}</h2>
+                      <Badge tone="accent">Essent</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {c.input.current.supplier || 'Onbekende leverancier'} → {c.input.offer.name} (tarieven versie {c.input.offer.version} van {formatDateNl(c.input.today)})
+                    </p>
+                    <p className="text-xs text-muted-foreground">Opgeslagen op {formatDateNl(c.savedAt.slice(0, 10))} · met de tarieven van toen</p>
+                  </div>
+                  {r.yearlySavingsCents !== null && <Badge tone={r.yearlySavingsCents >= 0 ? 'good' : 'warn'}>{r.yearlySavingsCents >= 0 ? `${formatEuro(r.yearlySavingsCents)} besparing` : `${formatEuro(-r.yearlySavingsCents)} duurder`} / jaar</Badge>}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        loadEnergy(c)
+                        navigate('/energie')
+                        toast('Energievergelijking geopend')
+                      }}
+                    >
+                      <FolderOpen /> Openen
+                    </Button>
+                    <Button size="icon" variant="danger" aria-label="Verwijderen" onClick={() => deleteEnergySaved(c.id)}>
+                      <Trash2 />
+                    </Button>
+                  </div>
+                </Card>
+              )
+            })}
             {consultations.map((c) => {
               const first = c.options[0]
               const r = first ? compare({ current: c.current, offer: first, combo: c.combo, period: c.period, startDate: c.startDate }) : null
@@ -151,7 +189,7 @@ export default function FollowUpsPage() {
                       variant="secondary"
                       onClick={() => {
                         loadDraft(c)
-                        navigate('/')
+                        navigate('/ziggo')
                         toast('Advies geopend')
                       }}
                     >

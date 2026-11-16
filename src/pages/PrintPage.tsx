@@ -25,7 +25,7 @@ export default function PrintPage() {
   if (!active) {
     return (
       <div className="grid h-full place-items-center">
-        <EmptyState icon={<Printer />} title="Nog niets om af te drukken" text="Kies eerst een aanbieding in het adviesscherm." action={<Button variant="primary" onClick={() => navigate('/')}>Naar nieuw advies</Button>} />
+        <EmptyState icon={<Printer />} title="Nog niets om af te drukken" text="Kies eerst een aanbieding in het adviesscherm." action={<Button variant="primary" onClick={() => navigate('/ziggo')}>Naar nieuw advies</Button>} />
       </div>
     )
   }

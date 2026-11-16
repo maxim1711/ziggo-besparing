@@ -16,6 +16,31 @@ npm run preview    # productie-build lokaal serveren, inclusief service worker
 
 Offline werken en installeren werken alleen vanuit de productie-build (`build` + `preview`, of `dist/` op een statische host).
 
+## Twee onderdelen
+
+Het startscherm kiest tussen **Ziggo — Internet & TV** en **Essent — Energie**. Elk onderdeel heeft eigen kleuren, eigen prijzen en een eigen rekenmotor; opvolgingen, resultaten en instellingen zijn gedeeld. Het Ziggo-advies staat nu op `#/ziggo`, het energieadvies op `#/energie`.
+
+## Essent: tarieven in seconden bijwerken
+
+Alles gebeurt in de app onder **Essent → Tarieven & Acties**; er is geen code, Claude of nieuwe publicatie voor nodig. De tarieven staan in de opslag van uw tablet.
+
+| Manier | Hoe |
+| --- | --- |
+| Snel bewerken | Tik in een tarief op de kaart van het aanbod, typ het nieuwe bedrag, **Opslaan**. Dat maakt een nieuwe versie; de vorige blijft bewaard onder "Vorige versies". |
+| Nieuwe actie op basis van huidige | Maakt een kopie als concept. Pas alleen aan wat anders is, zet de status op Gecontroleerd en eventueel **Maak standaard**. |
+| Tarieven plakken | Plak een bericht (WhatsApp, e-mail, spreadsheet). De app herkent tarieven met vaste regels op het apparaat zelf, toont bij elke waarde de bronregel, en meldt wat ontbreekt of tegenstrijdig is. Na uw bevestiging ontstaat een concept. |
+| CSV / JSON | Onder **Import & back-up**: exporteer naar CSV, bewerk in een spreadsheet, importeer. Elke regel wordt gecontroleerd; bestaande aanbiedingen blijven staan. |
+
+- Alleen een aanbod met status **Gecontroleerd** dat vandaag geldig is, kan aan een klant worden getoond. Een verlopen aanbod wordt nooit stilzwijgend gebruikt.
+- Per aanbod legt u vast of de tarieven **inclusief btw** en **inclusief energiebelasting** zijn. Staat energiebelasting uit, dan telt de app die één keer op uit de jaartabel.
+- **Belastingen & netbeheer** is een tabel per jaar (btw, energiebelasting, vermindering, netbeheer, wel/geen salderen). De bedragen zijn bewust leeg: neem ze over van de officiële bron. Zonder die bedragen vergelijkt de app de kosten bij de leverancier (netbeheer en vermindering zijn bij elke leverancier gelijk).
+- Vanaf 2027 staat "geen salderen" ingesteld; aanpasbaar per jaar.
+- Een opgeslagen vergelijking bewaart een eigen kopie van de tarieven en verandert niet als u de tarieven later aanpast.
+- Er is geen veld voor een maandelijks termijnbedrag: de vergelijking gebruikt altijd jaarverbruik met tarieven, of het totaal van de jaarafrekening.
+- Het meegeleverde aanbod is een **voorbeeld met verzonnen tarieven** en staat op Concept.
+
+De rekenregels staan in `src/engine/essent.ts`, de plak- en importregels in `src/engine/essentImport.ts`.
+
 ## Zo werkt een advies (3 stappen)
 
 1. **Huidige situatie** – maandbedrag, aanbieder, wel/geen tv, eventueel de einddatum van het contract.

@@ -96,7 +96,7 @@ export default function PresentationPage() {
   if (!active || active.blocked) {
     return (
       <div className="grid h-full place-items-center">
-        <EmptyState icon={<Info />} title="Nog niets om te tonen" text={active ? 'Er moet nog een prijs of combinatie worden gecontroleerd.' : 'Stel eerst een pakket samen.'} action={<Button variant="primary" onClick={() => navigate('/')}>Naar het pakket</Button>} />
+        <EmptyState icon={<Info />} title="Nog niets om te tonen" text={active ? 'Er moet nog een prijs of combinatie worden gecontroleerd.' : 'Stel eerst een pakket samen.'} action={<Button variant="primary" onClick={() => navigate('/ziggo')}>Naar het pakket</Button>} />
       </div>
     )
   }
@@ -111,7 +111,7 @@ export default function PresentationPage() {
   return (
     <div className="fixed inset-0 flex flex-col overflow-y-auto bg-white">
       <header className="safe-t flex items-center justify-between gap-3 px-4 pt-3 sm:px-6">
-        <button onClick={() => navigate('/')} className="flex h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-muted-foreground/80 hover:bg-muted hover:text-foreground">
+        <button onClick={() => navigate('/ziggo')} className="flex h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-muted-foreground/80 hover:bg-muted hover:text-foreground">
           <ArrowLeft className="size-4" /> Pakket aanpassen
         </button>
         <OptionTabs options={all} activeIndex={activeIndex} />
@@ -188,7 +188,7 @@ export default function PresentationPage() {
         onOpenChange={setNext}
         title="Volgende stap"
         footer={
-          <Button variant="primary" onClick={() => navigate('/')}>
+          <Button variant="primary" onClick={() => navigate('/ziggo')}>
             Terug naar adviseur
           </Button>
         }

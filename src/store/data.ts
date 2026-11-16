@@ -46,6 +46,8 @@ export interface Outcome {
   offerName: string
   kind: ProductKind | null
   commissionCents: number
+  /** Ontbreekt bij oudere registraties: dan Ziggo. */
+  module?: 'ziggo' | 'energie'
 }
 
 interface DataState {

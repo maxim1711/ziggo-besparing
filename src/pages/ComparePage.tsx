@@ -26,7 +26,7 @@ export default function ComparePage() {
       <Page>
         <PageHeader title="Vergelijken" />
         <Card>
-          <EmptyState icon={<Columns3 />} title="Nog niets om te vergelijken" text="Stel in het adviesscherm een pakket samen. Via Geavanceerd kunt u tot drie opties naast elkaar zetten." action={<Button asChild variant="primary"><Link to="/">Naar nieuw advies</Link></Button>} />
+          <EmptyState icon={<Columns3 />} title="Nog niets om te vergelijken" text="Stel in het adviesscherm een pakket samen. Via Geavanceerd kunt u tot drie opties naast elkaar zetten." action={<Button asChild variant="primary"><Link to="/ziggo">Naar nieuw advies</Link></Button>} />
         </Card>
       </Page>
     )

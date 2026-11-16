@@ -42,6 +42,8 @@ export default function ResultsPage() {
   const weekSales = week.filter((o) => o.result === 'verkocht')
   const todaySales = outcomes.filter((o) => o.date === today && o.result === 'verkocht').length
   const weekCommission = weekSales.reduce((a, o) => a + o.commissionCents, 0)
+  const weekEnergy = weekSales.filter((o) => o.module === 'energie')
+  const weekEnergyCommission = weekEnergy.reduce((a, o) => a + o.commissionCents, 0)
   const avgCommission = weekSales.length ? Math.round(weekCommission / weekSales.length) : 0
   const sales = outcomes.filter((o) => o.result === 'verkocht').length
   const conversion = outcomes.length ? Math.round((sales / outcomes.length) * 100) : null
@@ -93,7 +95,15 @@ export default function ResultsPage() {
             <span>{target > 0 ? `${progress}% van weekdoel` : 'Geen weekdoel ingesteld'}</span>
             <span className="tnum">{target > 0 && (weekCommission >= target ? 'Doel gehaald' : `nog ${formatEuro(target - weekCommission)} tot ${formatEuro(target)}`)}</span>
           </div>
-          <div className="mt-4 border-t pt-4 text-sm">
+          <div className="mt-4 space-y-1.5 border-t pt-4 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Ziggo ({weekSales.length - weekEnergy.length} verkopen)</span>
+              <span className="tnum font-semibold">{formatEuro(weekCommission - weekEnergyCommission)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Essent ({weekEnergy.length} verkopen)</span>
+              <span className="tnum font-semibold">{formatEuro(weekEnergyCommission)}</span>
+            </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Gemiddelde provisie per verkoop</span>
               <span className="tnum font-semibold">{weekSales.length ? formatEuro(avgCommission) : '—'}</span>
@@ -137,6 +147,7 @@ export default function ResultsPage() {
             {outcomes.slice(0, 50).map((o) => (
               <li key={o.id} className="flex items-center gap-3 px-3 py-2">
                 <Badge tone={o.result === 'verkocht' ? 'good' : o.result === 'opvolgen' ? 'primary' : 'neutral'}>{RESULT_LABEL[o.result]}</Badge>
+                {o.module === 'energie' && <Badge tone="accent">Essent</Badge>}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{o.offerName || (o.kind ? kindLabel(o.kind) : 'Advies')}</div>
                   <div className="text-xs text-muted-foreground">{formatDateNl(o.date)}</div>

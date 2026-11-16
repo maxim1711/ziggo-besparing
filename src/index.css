@@ -19,6 +19,15 @@
   --warn-soft: 28 100% 94%;
 }
 
+/* Essent-module: eigen accentkleur (geïnspireerd op, geen officiële huisstijl). */
+:root.theme-essent {
+  --primary: 334 82% 43%;
+  --primary-soft: 336 85% 96%;
+  --background: 340 25% 98%;
+  --muted: 340 18% 95%;
+  --border: 340 16% 90%;
+}
+
 @layer base {
   * { @apply border-border; }
   html, body, #root { height: 100%; }

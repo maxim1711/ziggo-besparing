@@ -9,12 +9,15 @@ import { todayIso } from '@/engine/dates'
 import { downloadFile } from '@/lib/utils'
 import { useData } from '@/store/data'
 import { useDraft } from '@/store/draft'
+import { useEnergy } from '@/store/energy'
 import { toast } from '@/store/toast'
 
 export default function SettingsPage() {
   const data = useData()
   const { settings, updateSettings } = data
   const resetDraft = useDraft((s) => s.reset)
+  const energyCommission = useEnergy((s) => s.commission)
+  const setEnergyCommission = useEnergy((s) => s.setCommission)
   const [confirm, setConfirm] = useState<'customer' | 'all' | null>(null)
   const file = useRef<HTMLInputElement>(null)
   const setCommission = (patch: Partial<typeof settings.commission>) => updateSettings({ commission: { ...settings.commission, ...patch } })
@@ -55,7 +58,13 @@ export default function SettingsPage() {
             <Field label="Bonus bij Vodafone-combinatie">
               <MoneyInput value={settings.commission.vodafoneComboBonusCents} onChange={(c) => setCommission({ vodafoneComboBonusCents: c ?? 0 })} emptyAsZero />
             </Field>
-            <Field label="Weekdoel provisie" hint="0 = geen doel">
+            <Field label="Essent: provisie stroom" hint="Per verkocht energiecontract">
+              <MoneyInput value={energyCommission.electricityCents} onChange={(c) => setEnergyCommission({ electricityCents: c ?? 0 })} emptyAsZero />
+            </Field>
+            <Field label="Essent: extra provisie gas" hint="Alleen als de klant ook gas afneemt">
+              <MoneyInput value={energyCommission.gasCents} onChange={(c) => setEnergyCommission({ gasCents: c ?? 0 })} emptyAsZero />
+            </Field>
+            <Field label="Weekdoel provisie" hint="0 = geen doel; Ziggo en Essent samen">
               <MoneyInput value={settings.weeklyTargetCents} onChange={(c) => updateSettings({ weeklyTargetCents: c ?? 0 })} emptyAsZero />
             </Field>
           </div>
@@ -69,6 +78,7 @@ export default function SettingsPage() {
               <li>Een lopend advies wordt niet blijvend bewaard; opslaan gebeurt alleen als u daar zelf op tikt.</li>
               <li>Bewaart u een voornaam of notitie bij een opvolging, dan verwerkt u persoonsgegevens en bent u daar zelf verantwoordelijk voor (AVG): beveilig het apparaat, bewaar niet langer dan nodig en verwijder op verzoek.</li>
               <li>Noteer nooit bankgegevens, betaalgegevens, BSN of kopieën van identiteitsbewijzen.</li>
+              <li>De Essent-module heeft een eigen back-up onder Essent → Tarieven &amp; Acties → Import &amp; back-up.</li>
               <li>Wist u de browsergegevens of verwijdert u de app, dan is alles weg. Maak daarom af en toe een back-up.</li>
             </ul>
             <div className="flex flex-wrap gap-2">
