@@ -112,30 +112,30 @@ describe('"Overstappen zonder gedoe" — conditional claims', () => {
     const s = slide('ja')
     expect(s.title).toBe('Overstappen zonder gedoe')
     expect(s.cards.map((c) => [c.heading, c.text])).toEqual([
-      ['Wij regelen uw overstap', 'Wij nemen contact op met uw huidige provider en regelen de volledige overstap. U hoeft zelf niets te doen.'],
-      ['Geen moment zonder internet', 'Wij zorgen ervoor dat u geen enkel moment zonder internet komt te zitten. Zo verloopt uw overstap vlekkeloos.'],
-      ['Alles professioneel geïnstalleerd', 'Er komt een monteur langs die alles voor u installeert en een wifi-check uitvoert, zodat u overal in huis goed internet heeft.'],
+      ['Wij regelen uw overstap.', 'Wij zeggen uw huidige abonnement op en regelen de volledige overstap. U hoeft zelf niets te doen.'],
+      ['Geen seconde zonder internet.', 'Wij zorgen voor een vlekkeloze overgang, zodat u gewoon verbonden blijft.'],
+      ['Alles professioneel geïnstalleerd.', 'Onze monteur komt gratis langs, installeert uw Ziggo-apparatuur en controleert de wifi in huis.'],
     ])
     expect(s.cards.every((c) => c.confirmed)).toBe(true)
   })
-  it('each promise keeps one short caveat; nothing is labelled a guarantee', () => {
+  it('confirmed promises carry no disclaimer on the main slide; conditions stay behind the details link', () => {
     const s = slide('ja')
-    expect(s.cards[1].note).toContain('kan het anders lopen')
-    expect(s.cards[2].note).toContain('niet automatisch gratis')
-    for (const c of s.cards) expect(c.note!.length).toBeLessThanOrEqual(100)
-    expect(all(s)).not.toMatch(/gegarandeerd|garantie/i)
+    expect(s.cards.map((c) => c.note)).toEqual([null, null, null])
+    expect(s.details.length).toBeGreaterThanOrEqual(3)
+    expect(s.details.join(' ')).toContain('niet automatisch gratis')
   })
-  it('the continuity promise needs a confirmed Overstapservice, the installation promise a confirmed installation', () => {
-    for (const o of ['nee', 'controleren'] as const) expect(JSON.stringify(slide(o, 'ja').cards)).not.toMatch(/Geen moment zonder internet|geen enkel moment|U hoeft zelf niets te doen/)
-    for (const i of ['nee', 'bespreken'] as const) expect(JSON.stringify(slide('ja', i).cards)).not.toMatch(/Alles professioneel geïnstalleerd|overal in huis goed internet/)
-    expect(slide('nee', 'ja').cards[2].heading).toBe('Alles professioneel geïnstalleerd')
+  it('each promise needs its own confirmation', () => {
+    for (const o of ['nee', 'controleren'] as const) expect(JSON.stringify(slide(o, 'ja').cards)).not.toMatch(/Geen seconde zonder internet|gewoon verbonden blijft|zeggen uw huidige abonnement op|U hoeft zelf niets te doen/)
+    for (const i of ['nee', 'bespreken'] as const) expect(JSON.stringify(slide('ja', i).cards)).not.toMatch(/Alles professioneel geïnstalleerd|komt gratis langs/)
+    expect(slide('nee', 'ja').cards[2].heading).toBe('Alles professioneel geïnstalleerd.')
+    expect(slide('ja', 'nee').cards[0].heading).toBe('Wij regelen uw overstap.')
   })
   it.each(['nee', 'controleren'] as const)('Overstapservice %s: never claims Ziggo cancels the old contract', (choice) => {
     const s = slide(choice)
     expect(s.cards[0].heading).toBe('Hulp bij uw overstap')
     expect(s.cards[0].text).toBe('Wij helpen u met de stappen voor een soepele overstap.')
     expect(s.cards[0].confirmed).toBe(false)
-    expect(s.cards[1].heading).not.toBe('Geen moment zonder internet')
+    expect(s.cards[1].heading).not.toBe('Geen seconde zonder internet.')
     const cards = JSON.stringify(s.cards)
     expect(cards).not.toContain('regelen de volledige overstap')
     expect(cards).not.toContain('Wij regelen uw overstap')
@@ -150,15 +150,13 @@ describe('"Overstappen zonder gedoe" — conditional claims', () => {
     const yes = slide('ja', 'ja').cards[2]
     const maybe = slide('ja', 'bespreken').cards[2]
     const no = slide('ja', 'nee').cards[2]
-    expect(yes).toMatchObject({ heading: 'Alles professioneel geïnstalleerd', confirmed: true })
+    expect(yes).toMatchObject({ heading: 'Alles professioneel geïnstalleerd.', confirmed: true, note: null })
     expect(maybe).toMatchObject({ heading: 'Installatiehulp mogelijk', confirmed: false })
     expect(maybe.text).toContain('Als u dat wilt')
     expect(no.heading).toBe('Zelf aansluiten')
     expect(no.text).not.toContain('monteur')
-    for (const c of [yes, maybe]) {
-      expect(c.note).toContain('acht weken')
-      expect(c.note).toContain('niet automatisch gratis')
-    }
+    expect(maybe.note).toContain('acht weken')
+    expect(maybe.note).toContain('niet automatisch gratis')
   })
   it('always exactly three cards and the editable conditions behind the details link', () => {
     for (const o of ['ja', 'nee', 'controleren'] as const) for (const i of ['ja', 'nee', 'bespreken'] as const) expect(slide(o, i).cards).toHaveLength(3)

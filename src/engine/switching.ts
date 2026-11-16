@@ -87,7 +87,7 @@ export interface SwitchCard {
   icon: 'handshake' | 'wifi' | 'wrench'
   heading: string
   text: string
-  /** Korte, altijd zichtbare kanttekening. */
+  /** Korte toelichting bij een niet-bevestigde kaart; null bij een bevestigde belofte. */
   note: string | null
   /** true = bevestigd voordeel; false = hulp/uitleg zonder toezegging. */
   confirmed: boolean
@@ -105,12 +105,12 @@ export interface SwitchSlide {
 /**
  * Bouwt het tweede scherm. De drie beloften (in de woorden van de adviseur) verschijnen alleen
  * wanneer de adviseur de bijbehorende dienst heeft bevestigd; anders komt er een eerlijk alternatief.
- * Onder elke belofte blijft één korte kanttekening staan: de uitkomst is niet door Ziggo gegarandeerd.
+ * Bevestigde beloften staan zonder kanttekening op het scherm; de voorwaarden staan achter de link "Voorwaarden".
  */
 export function buildSwitchSlide(c: SwitchChecklist, texts: SwitchTexts, provider = 'Ziggo'): SwitchSlide {
   const confirmed = c.overstap === 'ja'
   const overstap: SwitchCard = confirmed
-    ? { id: 'overstap', icon: 'handshake', heading: 'Wij regelen uw overstap', text: 'Wij nemen contact op met uw huidige provider en regelen de volledige overstap. U hoeft zelf niets te doen.', note: 'Met de Overstapservice bij uw bestelling.', confirmed: true }
+    ? { id: 'overstap', icon: 'handshake', heading: 'Wij regelen uw overstap.', text: 'Wij zeggen uw huidige abonnement op en regelen de volledige overstap. U hoeft zelf niets te doen.', note: null, confirmed: true }
     : {
         id: 'overstap',
         icon: 'handshake',
@@ -120,11 +120,11 @@ export function buildSwitchSlide(c: SwitchChecklist, texts: SwitchTexts, provide
         confirmed: false,
       }
   const verbinding: SwitchCard = confirmed
-    ? { id: 'verbinding', icon: 'wifi', heading: 'Geen moment zonder internet', text: 'Wij zorgen ervoor dat u geen enkel moment zonder internet komt te zitten. Zo verloopt uw overstap vlekkeloos.', note: 'Met de Overstapservice; bij een storing of bijzondere situatie kan het anders lopen.', confirmed: true }
+    ? { id: 'verbinding', icon: 'wifi', heading: 'Geen seconde zonder internet.', text: 'Wij zorgen voor een vlekkeloze overgang, zodat u gewoon verbonden blijft.', note: null, confirmed: true }
     : { id: 'verbinding', icon: 'wifi', heading: 'Zo houdt u verbinding', text: 'Zeg uw oude abonnement pas op als uw nieuwe aansluiting werkt.', note: 'Zo voorkomt u dat u een periode zonder internet of tv zit.', confirmed: false }
   const installatie: SwitchCard =
     c.install === 'ja'
-      ? { id: 'installatie', icon: 'wrench', heading: 'Alles professioneel geïnstalleerd', text: 'Er komt een monteur langs die alles voor u installeert en een wifi-check uitvoert, zodat u overal in huis goed internet heeft.', note: 'Op afspraak, tot acht weken na ontvangst. Extra werk of bekabeling is niet automatisch gratis.', confirmed: true }
+      ? { id: 'installatie', icon: 'wrench', heading: 'Alles professioneel geïnstalleerd.', text: 'Onze monteur komt gratis langs, installeert uw Ziggo-apparatuur en controleert de wifi in huis.', note: null, confirmed: true }
       : c.install === 'nee'
         ? { id: 'installatie', icon: 'wrench', heading: 'Zelf aansluiten', text: 'U sluit de apparatuur zelf aan met de meegeleverde uitleg.', note: 'Toch hulp nodig? Installatiehulp is aan te vragen tot acht weken na ontvangst van de apparatuur.', confirmed: false }
         : { id: 'installatie', icon: 'wrench', heading: 'Installatiehulp mogelijk', text: `Als u dat wilt, helpt een ${provider}-monteur op afspraak met de installatie en een wifi-check.`, note: 'Aan te vragen tot acht weken na ontvangst van de apparatuur; extra werk of bekabeling is niet automatisch gratis.', confirmed: false }

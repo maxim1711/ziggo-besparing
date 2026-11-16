@@ -49,8 +49,8 @@ De rekenregels staan in `src/engine/essent.ts`, de plak- en importregels in `src
 
 De klantpresentatie heeft twee schermen: **Uw aanbod** en **Overstappen zonder gedoe**, met Vorige/Volgende (geen automatische doorloop). Het tweede scherm volgt de korte checklist in stap 2:
 
-- *Overstapservice van toepassing?* Ja / Nee / Nog controleren — alleen bij **Ja** toont het scherm de beloften "Wij regelen uw overstap" en "Geen moment zonder internet". Anders staat er "Wij helpen u met de stappen voor een soepele overstap" en dat de klant zelf opzegt.
-- *Installatiehulp gewenst?* Ja / Nee / Bespreken — alleen bij **Ja** staat er "Alles professioneel geïnstalleerd".
+- *Overstapservice van toepassing?* Ja / Nee / Nog controleren — alleen bij **Ja** toont het scherm de beloften "Wij regelen uw overstap." en "Geen seconde zonder internet.", zonder kanttekening. Anders staat er "Wij helpen u met de stappen voor een soepele overstap" en dat de klant zelf opzegt.
+- *Monteursafspraak wordt geregeld?* Ja / Nee / Bespreken — alleen bij **Ja** staat er "Alles professioneel geïnstalleerd."
 
 De voorwaardenteksten en uw eigen geheugensteun voor de Overstapservice past u aan bij **Instellingen → Ziggo: overstappen en installatie**.
 

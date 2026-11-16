@@ -728,10 +728,10 @@ function Summary() {
             <Segmented size="sm" aria-label="Overstapservice van toepassing?" value={switching.overstap} onChange={(overstap) => setSwitching({ overstap })} options={[{ value: 'ja', label: 'Ja' }, { value: 'nee', label: 'Nee' }, { value: 'controleren', label: 'Nog controleren' }]} />
           </div>
           <div>
-            <div className="mb-1 text-[13px] font-medium">Installatiehulp gewenst?</div>
-            <Segmented size="sm" aria-label="Installatiehulp gewenst?" value={switching.install} onChange={(install) => setSwitching({ install })} options={[{ value: 'ja', label: 'Ja' }, { value: 'nee', label: 'Nee' }, { value: 'bespreken', label: 'Bespreken' }]} />
+            <div className="mb-1 text-[13px] font-medium">Monteursafspraak wordt geregeld?</div>
+            <Segmented size="sm" aria-label="Monteursafspraak wordt geregeld?" value={switching.install} onChange={(install) => setSwitching({ install })} options={[{ value: 'ja', label: 'Ja' }, { value: 'nee', label: 'Nee' }, { value: 'bespreken', label: 'Bespreken' }]} />
           </div>
-          {switching.overstap !== 'ja' && <p className="text-xs text-muted-foreground">Zonder “Ja” belooft het klantscherm niet dat de opzegging wordt geregeld.</p>}
+          {(switching.overstap !== 'ja' || switching.install !== 'ja') && <p className="text-xs text-muted-foreground">Een belofte verschijnt alleen op het klantscherm als de bijbehorende keuze op “Ja” staat.</p>}
         </div>
       )}
 

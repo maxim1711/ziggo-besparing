@@ -154,7 +154,7 @@ function SwitchSlideView({ slide, onDetails }: { slide: SwitchSlide; onDetails: 
     <div className="w-full">
       <div className="text-center">
         <div className="text-sm font-semibold uppercase tracking-[.16em] text-accent">{slide.intro}</div>
-        <h1 className="mt-2 text-[clamp(34px,4.6vw,54px)] font-semibold leading-[1.05] tracking-tight [@media(max-height:800px)]:text-[38px]" style={{ color: NAVY }}>
+        <h1 className="mt-2 text-[clamp(34px,4.6vw,54px)] font-bold leading-[1.05] tracking-tight [@media(max-height:800px)]:text-[38px]" style={{ color: NAVY }}>
           {slide.title}
         </h1>
       </div>
@@ -162,15 +162,15 @@ function SwitchSlideView({ slide, onDetails }: { slide: SwitchSlide; onDetails: 
         {slide.cards.map((c, i) => {
           const Icon = ICONS[c.icon]
           return (
-            <article key={c.id} className="flex animate-fade-up gap-5 rounded-3xl border bg-white p-6 shadow-card lg:flex-col lg:gap-0 lg:p-7 [@media(max-height:800px)]:p-5 [@media(max-height:800px)]:lg:p-5" style={{ animationDelay: `${i * 70}ms` }}>
-              <div className="grid size-16 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#ff8a1f] to-[#f15a00] text-white shadow-[0_10px_24px_-10px_rgba(241,90,0,.6)] [@media(max-height:800px)]:size-14">
-                <Icon className="size-8" strokeWidth={1.9} />
+            <article key={c.id} className="flex animate-fade-up gap-5 rounded-3xl border bg-white p-6 shadow-card lg:flex-col lg:gap-0 lg:p-8 [@media(max-height:800px)]:p-5 [@media(max-height:800px)]:lg:p-6" style={{ animationDelay: `${i * 70}ms` }}>
+              <div className="grid size-[72px] shrink-0 place-items-center rounded-[22px] bg-gradient-to-br from-[#ff8a1f] to-[#f15a00] text-white shadow-[0_10px_24px_-10px_rgba(241,90,0,.6)] [@media(max-height:800px)]:size-14">
+                <Icon className="size-9" strokeWidth={1.9} />
               </div>
               <div className="flex min-w-0 flex-1 flex-col">
-                <h2 className="text-[26px] font-semibold leading-tight tracking-tight lg:mt-5 [@media(max-height:800px)]:text-[23px] [@media(max-height:800px)]:lg:mt-4" style={{ color: NAVY }}>
+                <h2 className="text-[30px] font-bold leading-[1.1] tracking-tight lg:mt-6 [@media(max-height:800px)]:text-[26px] [@media(max-height:800px)]:lg:mt-4" style={{ color: NAVY }}>
                   {c.heading}
                 </h2>
-                <p className="mt-2 text-lg leading-snug text-[#3b4a6b] [@media(max-height:800px)]:text-[16px]">{c.text}</p>
+                <p className="mt-3 text-[19px] leading-snug text-[#3b4a6b] [@media(max-height:800px)]:text-[17px]">{c.text}</p>
                 {c.note && <p className="mt-auto pt-4 text-sm leading-snug text-muted-foreground">{c.note}</p>}
               </div>
             </article>
