@@ -1,6 +1,7 @@
 import { Gift as GiftIcon, ImagePlus, X } from 'lucide-react'
 import { newId } from '@/engine/defaults'
 import type { Gift, GiftType, Offer } from '@/engine/types'
+import { assetUrl } from '@/lib/utils'
 import { toast } from '@/store/toast'
 import { ListEditor } from './ListEditor'
 import { Button } from './ui/button'
@@ -148,7 +149,7 @@ export function OfferForm({ offer, onChange }: { offer: Offer; onChange: (offer:
               <div className="flex items-center gap-2">
                 {offer.gift.imageDataUrl ? (
                   <>
-                    <img src={offer.gift.imageDataUrl} alt="" className="size-12 rounded-lg border object-cover" />
+                    <img src={assetUrl(offer.gift.imageDataUrl) ?? undefined} alt="" className="size-12 rounded-lg border object-cover" />
                     <Button variant="ghost" size="sm" onClick={() => setGift({ imageDataUrl: null })}>
                       <X /> Verwijderen
                     </Button>

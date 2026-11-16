@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { InsightList } from '@/components/InsightList'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/card'
-import { assumptions, priceSegments, segmentLabel } from '@/engine/customerView'
+import { assumptions, priceSegments, segmentLabel, validityText } from '@/engine/customerView'
 import { formatDateNl } from '@/engine/dates'
 import { formatEuro } from '@/engine/money'
 import { kindLabel } from '@/lib/utils'
@@ -77,6 +77,7 @@ export default function PrintPage() {
             <Row k="Internetsnelheid" v={`${offer.speedMbps} Mbit/s`} />
             <Row k="Type" v={kindLabel(offer.kind)} />
             <Row k="Contractduur" v={`${offer.contractMonths} maanden`} />
+            {offer.promoName && <Row k="Welkomstactie" v={offer.promoName} />}
             {priceSegments(r).map((s) => (
               <Row key={s.from} k={`${segmentLabel(s)}${s.from > offer.contractMonths ? ' (schatting)' : ''}`} v={`${formatEuro(s.cents)} p/m`} />
             ))}
@@ -118,7 +119,7 @@ export default function PrintPage() {
             <h2 className="font-semibold">Uw cadeau: {offer.gift.name || 'actieproduct'}</h2>
             {offer.gift.description && <p className="text-sm">{offer.gift.description}</p>}
             <p className="mt-1 text-xs text-muted-foreground">
-              {offer.gift.retailValueCents ? `Adviesprijs volgens de aanbieder: ${formatEuro(offer.gift.retailValueCents)}. ` : ''}De waarde van het cadeau is geen geldbedrag dat u bespaart en is niet verrekend in de kosten.
+              {offer.gift.retailValueCents ? `Geadverteerde waarde: ${formatEuro(offer.gift.retailValueCents)}. ` : ''}De waarde van het cadeau is geen geldbedrag dat u bespaart en is niet verrekend in de kosten.
               {offer.gift.conditions && ` Voorwaarden: ${offer.gift.conditions}`}
             </p>
           </section>
@@ -131,9 +132,7 @@ export default function PrintPage() {
 
         <section className="mt-6 text-xs text-muted-foreground">
           <h2 className="mb-1 text-sm font-semibold text-foreground">Voorwaarden en aannames</h2>
-          <p>
-            Aanbieding geldig van {formatDateNl(offer.validFrom)} tot en met {formatDateNl(offer.validTo)} (versie {offer.version}).
-          </p>
+          <p>{validityText(offer)}</p>
           {offer.conditions && <p className="mt-1">{offer.conditions}</p>}
           <ul className="mt-1 list-disc space-y-0.5 pl-4">
             {assumptions(v).map((a) => (

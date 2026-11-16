@@ -1,7 +1,7 @@
 import { formatDateNl } from '@/engine/dates'
 import { formatEuro } from '@/engine/money'
-import { assumptions, priceSegments, segmentLabel, type CustomerView } from '@/engine/customerView'
-import { kindLabel } from '@/lib/utils'
+import { assumptions, priceSegments, segmentLabel, validityText, type CustomerView } from '@/engine/customerView'
+import { assetUrl, kindLabel } from '@/lib/utils'
 
 const eur = (c: number) => formatEuro(c, { plainSpace: true })
 /** Standaard-PDF-lettertypen kennen alleen WinAnsi: vervang tekens daarbuiten. */
@@ -13,6 +13,34 @@ const MUTED: [number, number, number] = [107, 100, 128]
 const GOOD: [number, number, number] = [15, 138, 95]
 const WARN: [number, number, number] = [194, 65, 12]
 const LINE: [number, number, number] = [228, 224, 238]
+
+/** Zet een afbeelding (ook SVG) om naar PNG, want de PDF kent alleen rasterbeeld. Mislukt het, dan komt er geen beeld. */
+async function loadPng(src: string | null): Promise<string | null> {
+  const url = assetUrl(src)
+  if (!url) return null
+  try {
+    const img = new Image()
+    img.decoding = 'async'
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = () => reject(new Error('image'))
+      img.src = url
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = 640
+    canvas.height = 480
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, 640, 480)
+    const scale = Math.min(640 / (img.naturalWidth || 640), 480 / (img.naturalHeight || 480))
+    const w = (img.naturalWidth || 640) * scale
+    const h = (img.naturalHeight || 480) * scale
+    ctx.drawImage(img, (640 - w) / 2, (480 - h) / 2, w, h)
+    return canvas.toDataURL('image/jpeg', 0.85)
+  } catch {
+    return null
+  }
+}
 
 /** Bouwt een vector-PDF (geen schermafdruk) met uitsluitend klantveilige gegevens. */
 export async function generateProposalPdf(view: CustomerView, advisorName: string): Promise<{ blob: Blob; filename: string }> {
@@ -114,10 +142,10 @@ export async function generateProposalPdf(view: CustomerView, advisorName: strin
   ]
   const segs = priceSegments(result)
   const right: [string, string][] = [
-    ...(offer.includes && offer.includes.length > 1 ? ([['Inbegrepen', `${offer.includes.length} onderdelen`]] as [string, string][]) : []),
     ['Internetsnelheid', `${offer.speedMbps} Mbit/s`],
     ['Type', kindLabel(offer.kind)],
     ['Contractduur', `${offer.contractMonths} maanden`],
+    ...(offer.promoName ? ([['Actie', offer.promoName.length > 38 ? offer.promoName.slice(0, 37) + '...' : offer.promoName]] as [string, string][]) : []),
     ...segs.map((s): [string, string] => [`${segmentLabel(s)}${s.from > offer.contractMonths ? ' (schatting)' : ''}`, `${eur(s.cents)} p/m`]),
     ...(offer.promoMonths > 0 ? ([['Regulier tarief na actie', `${eur(offer.regularMonthlyCents)} p/m`]] as [string, string][]) : []),
   ]
@@ -168,11 +196,18 @@ export async function generateProposalPdf(view: CustomerView, advisorName: strin
 
   if (offer.gift) {
     heading('Uw cadeau')
-    text(offer.gift.name || 'Actieproduct', M, y, { size: 11, bold: true })
+    const picture = await loadPng(offer.gift.imageDataUrl)
+    const tw = picture ? CW - 46 : CW
+    const tx = picture ? M + 46 : M
+    ensure(34)
+    const top0 = y
+    if (picture) doc.addImage(picture, 'JPEG', M, y - 4, 40, 30)
+    text(offer.gift.name || 'Actieproduct', tx, y, { size: 11, bold: true })
     y += 5.5
-    if (offer.gift.description) para(offer.gift.description, M, CW)
-    if (offer.gift.retailValueCents) para(`Adviesprijs volgens de aanbieder: ${eur(offer.gift.retailValueCents)}. Dit is geen geldbedrag dat u bespaart en is niet verrekend in de kosten.`, M, CW, 8.5, MUTED)
-    if (offer.gift.conditions) para(`Voorwaarden: ${offer.gift.conditions}`, M, CW, 8.5, MUTED)
+    if (offer.gift.description) para(offer.gift.description, tx, tw)
+    if (offer.gift.retailValueCents) para(`Geadverteerde waarde: ${eur(offer.gift.retailValueCents)}. Dit is geen geldbedrag dat u bespaart en is niet verrekend in de kosten.`, tx, tw, 8.5, MUTED)
+    if (offer.gift.conditions) para(`Voorwaarden: ${offer.gift.conditions}`, tx, tw, 8.5, MUTED)
+    if (picture) y = Math.max(y, top0 + 29)
   }
 
   heading('Toelichting')
@@ -184,7 +219,7 @@ export async function generateProposalPdf(view: CustomerView, advisorName: strin
   }
 
   heading('Voorwaarden en aannames')
-  para(`Aanbieding geldig van ${formatDateNl(offer.validFrom)} tot en met ${formatDateNl(offer.validTo)} (versie ${offer.version}).`, M, CW, 9)
+  para(validityText(offer), M, CW, 9)
   if (offer.conditions.trim()) para(offer.conditions.trim(), M, CW, 9)
   for (const a of assumptions(view)) para(`- ${a}`, M, CW, 8.5, MUTED)
 

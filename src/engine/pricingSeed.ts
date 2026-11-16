@@ -1,4 +1,4 @@
-import type { ExtraCategory, ExtraService, InternetProduct, PackagePrice, PricingCatalog, Source, TvPackage } from './pricing'
+import type { ExtraCategory, ExtraService, GiftDefinition, InternetProduct, PackagePrice, PricingCatalog, Promotion, Source, TvPackage } from './pricing'
 import { PRICING_SCHEMA_VERSION, packageKey } from './pricing'
 
 /**
@@ -136,6 +136,44 @@ const EXTRAS: ExtraService[] = [
   x('x-gay', 'Gay Lifestyle', 'specialistisch', 995, { moreOptions: true }),
 ]
 
+/** Welkomstacties sluiten elkaar uit: de klant kiest er precies één. */
+export const WELCOME_GROUP = 'Welkomstactie'
+const campaign = (): Source => ({ url: null, verifiedOn: SEED_DATE })
+
+const GIFTS: GiftDefinition[] = [
+  { id: 'gift-bol-450', available: true, type: 'cadeaukaart', name: 'bol cadeaukaart van € 450', imageDataUrl: 'gifts/cadeaukaart.svg', retailValueCents: 45000, description: 'Cadeaukaart om te besteden bij bol.', conditions: 'Volgens de actievoorwaarden.' },
+  { id: 'gift-samsung-tv-soundbar', available: true, type: 'televisie', name: 'Samsung 55-inch 4K-tv + soundbar', imageDataUrl: 'gifts/tv-soundbar.svg', retailValueCents: 89800, description: 'Televisie met bijpassende soundbar.', conditions: 'Volgens de actievoorwaarden.' },
+]
+
+const welcome = (over: Partial<Promotion> & Pick<Promotion, 'id' | 'name'>): Promotion => ({
+  channel: 'eigen',
+  status: 'gecontroleerd',
+  validFrom: null,
+  validTo: null,
+  contractMonths: 24,
+  durationMonths: null,
+  fixedPrices: {},
+  monthlyDiscountCents: 0,
+  oneTimeDiscountCents: 0,
+  giftId: null,
+  exclusiveGroup: WELCOME_GROUP,
+  requiresTv: false,
+  conditions: 'Bij een contract van 24 maanden. Niet te combineren met een andere welkomstactie.',
+  benefits: '',
+  source: campaign(),
+  internalNotes: 'Uit de salescampagne van de adviseur (16-11-2026). Einddatum nog invullen.',
+  ...over,
+})
+
+/** Optie A geldt voor alle vier standaardsnelheden, met of zonder tv (zonder vast bellen). */
+const all16 = (cents: number): Record<string, number> => Object.fromEntries(Object.keys(MATRIX).flatMap((n) => [null, ...TV.map((t) => t.id)].map((t) => [packageKey(n, t, false), cents])))
+
+const WELCOME: Promotion[] = [
+  welcome({ id: 'welkom-35', name: '12 maanden € 35 per maand', durationMonths: 12, fixedPrices: all16(3500), conditions: 'Bij een contract van 24 maanden. Na 12 maanden geldt de normale prijs. Geen welkomstcadeau.' }),
+  welcome({ id: 'welkom-bol', name: 'bol cadeaukaart van € 450', giftId: 'gift-bol-450', conditions: 'Bij een contract van 24 maanden. U betaalt de normale maandprijs. Niet te combineren met de maandkorting of een ander cadeau.' }),
+  welcome({ id: 'welkom-samsung', name: 'Samsung 55-inch 4K-tv + soundbar', giftId: 'gift-samsung-tv-soundbar', conditions: 'Bij een contract van 24 maanden. U betaalt de normale maandprijs. Niet te combineren met de maandkorting of een ander cadeau.' }),
+]
+
 export function seedPricing(): PricingCatalog {
   return structuredClone({
     schemaVersion: PRICING_SCHEMA_VERSION,
@@ -145,8 +183,9 @@ export function seedPricing(): PricingCatalog {
     tv: TV,
     prices: prices(),
     extras: EXTRAS,
-    gifts: [],
+    gifts: GIFTS,
     promotions: [
+      ...WELCOME,
       {
         id: 'promo-3495-12m',
         name: '12 maanden € 34,95 — 24 maanden contract',
@@ -161,7 +200,7 @@ export function seedPricing(): PricingCatalog {
         monthlyDiscountCents: 0,
         oneTimeDiscountCents: 0,
         giftId: null,
-        exclusiveGroup: 'Hoofdactie',
+        exclusiveGroup: WELCOME_GROUP,
         requiresTv: false,
         conditions: 'Voor nieuwe klanten, bij een contract van 24 maanden. Na 12 maanden geldt de normale prijs.',
         benefits: '',

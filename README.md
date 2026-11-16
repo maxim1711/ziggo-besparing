@@ -36,7 +36,7 @@ Alles staat in **Prijzen & Aanbiedingen**; er is geen programmeerwerk nodig.
 | Extra diensten | ontvangers, wifi-versterkers, sport, film, bundels, streaming; prijs en aan/uit direct in de lijst |
 | Vodafone | referentiekorting per snelheid |
 | Acties | openbare websiteacties (referentie) |
-| Mijn Salesacties | uw eigen, toegestane deuracties met status Concept / Gecontroleerd / Verlopen |
+| Mijn Salesacties | uw eigen, toegestane deuracties met status Concept / Gecontroleerd / Verlopen. Hier staan de drie welkomstacties (12 maanden € 35, bol cadeaukaart € 450, Samsung-tv + soundbar); de klant kiest er precies één. |
 | Cadeaus | cadeaus die u aan een actie koppelt |
 | Back-up | exporteren, importeren (met controle), basisprijzen terugzetten |
 
@@ -80,6 +80,14 @@ Open de app daarna één keer met internet; vanaf dan werkt hij offline.
 
 - Prijzen, instellingen, adviezen en opvolgingen staan in de opslag van de browser op de tablet en blijven bij een update staan (de opslag is geversioneerd en wordt gemigreerd).
 - Ze horen bij het **adres**: verhuist de app naar een ander adres, of wist u de browsergegevens, dan zijn ze weg. Maak daarom vóór een update of verhuizing een back-up: *Prijzen & Aanbiedingen → Back-up* (prijzen) en *Instellingen → Back-up exporteren* (alles).
+
+### GitHub Pages en het basispad
+
+De app staat onder `/ziggo-besparing/`. Dat is vastgelegd in `vite.config.ts` (`base: '/ziggo-besparing/'`) en mag niet worden gewijzigd zolang het adres hetzelfde blijft. Assets, manifest, service worker (scope `/ziggo-besparing/`) en afbeeldingen volgen dit pad; de app gebruikt hash-routes (`#/prijzen`), dus verversen of direct openen geeft geen 404. In code altijd `import.meta.env.BASE_URL` of `assetUrl()` gebruiken, nooit een pad dat met `/` begint.
+
+### Cadeau-afbeeldingen
+
+De meegeleverde afbeeldingen (`public/gifts/*.svg`) zijn **illustraties**, geen productfoto's: model en gebruiksrecht van echte productfoto's zijn niet bevestigd. Ze worden meegebundeld en werken offline. Een eigen foto uploadt u bij Prijzen & Aanbiedingen → Cadeaus; laadt een afbeelding niet, dan verschijnt een nette vervanger.
 
 ## Broncode meenemen
 

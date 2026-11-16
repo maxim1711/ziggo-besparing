@@ -1,8 +1,9 @@
-import { ArrowLeft, ArrowRight, Check, FileDown, Gift, Info, Send } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, FileDown, Info, Send } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatedMoney } from '@/components/AnimatedMoney'
 import { Breakdown } from '@/components/Breakdown'
+import { GiftImage } from '@/components/GiftImage'
 import { OptionTabs } from '@/components/OptionTabs'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/card'
@@ -70,12 +71,15 @@ function GiftCard({ v }: { v: CustomerView }) {
   if (!g) return null
   return (
     <div className="flex items-center gap-5 rounded-3xl border bg-card p-5">
-      <div className="grid size-24 shrink-0 place-items-center overflow-hidden rounded-2xl bg-accent-soft">{g.imageDataUrl ? <img src={g.imageDataUrl} alt="" className="size-full object-contain" /> : <Gift className="size-10 text-accent" strokeWidth={1.5} />}</div>
+      <GiftImage src={g.imageDataUrl} alt={g.name} className="size-28 sm:size-32" />
       <div className="min-w-0">
         <div className="text-sm font-semibold uppercase tracking-wider text-accent">Uw cadeau</div>
         <div className="text-xl font-semibold leading-tight">{g.name || 'Actieproduct'}</div>
         {g.description && <p className="text-base text-muted-foreground">{g.description}</p>}
-        <p className="mt-1 text-xs text-muted-foreground">{g.conditions ? `${g.conditions} ` : ''}Het cadeau telt niet mee in uw besparing.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {g.retailValueCents ? `Geadverteerde waarde ${eur(g.retailValueCents)}. ` : ''}
+          {g.conditions ? `${g.conditions} ` : ''}Het cadeau is geen geldbedrag en telt niet mee in uw besparing.
+        </p>
       </div>
     </div>
   )
@@ -115,7 +119,10 @@ export default function PresentationPage() {
 
       <main key={active.buildIndex} className="mx-auto grid w-full max-w-[1180px] flex-1 animate-fade-up content-center items-center gap-8 px-6 py-6 sm:px-10 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
         <section>
-          <div className="text-sm font-semibold uppercase tracking-[.16em] text-primary">Uw nieuwe abonnement</div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-semibold uppercase tracking-[.16em] text-primary">Uw nieuwe abonnement</span>
+            {offer.promoName && <span className="rounded-full bg-accent-soft px-3 py-1 text-sm font-semibold text-warn">Welkomstactie: {offer.promoName}</span>}
+          </div>
           <h1 className="mt-2 text-[clamp(30px,4vw,46px)] font-semibold leading-[1.08] tracking-tight">{offer.name}</h1>
           <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5 text-lg text-muted-foreground">
             {includes.map((i) => (

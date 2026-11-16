@@ -54,6 +54,7 @@ export type GiftType = 'televisie' | 'soundbar' | 'cadeaukaart' | 'anders'
 export interface Gift {
   type: GiftType
   name: string
+  /** Geüploade foto (data-URL) of pad naar een meegeleverde afbeelding in `public/` (bv. "gifts/x.svg"). */
   imageDataUrl: string | null
   /** Adviesprijs; puur informatief, telt nooit mee als besparing. */
   retailValueCents: Cents | null
@@ -88,6 +89,8 @@ export interface Offer {
   internalNotes: string
   /** Inbegrepen onderdelen, zoals de klant ze ziet (bv. "Internet 1 Gbit/s", "TV Start"). */
   includes?: string[]
+  /** Naam van de gekozen actie(s), zoals de klant die ziet. */
+  promoName?: string
   /** Einddatum van de gekozen actie; null/undefined = geen actie met einddatum. */
   promoValidTo?: IsoDate | null
   /** Oudste controledatum van de gebruikte prijzen. */

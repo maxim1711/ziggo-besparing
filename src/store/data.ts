@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import { newId } from '@/engine/defaults'
 import type { CommissionSettings } from '@/engine/commission'
 import type { Catalog as CatalogV2 } from '@/engine/catalog'
-import { migrateCatalogV2, PRICING_SCHEMA_VERSION, type PricingCatalog } from '@/engine/pricing'
+import { addMissingSeedItems, migrateCatalogV2, PRICING_SCHEMA_VERSION, type PricingCatalog } from '@/engine/pricing'
 import { seedPricing } from '@/engine/pricingSeed'
 import type { ComparisonPeriod, CurrentSubscription, Offer, ProductKind, VodafoneCombo } from '@/engine/types'
 
@@ -101,7 +101,7 @@ export const useData = create<DataState>()(
         set((s) => {
           const seed = seedPricing()
           const mine = s.pricing.promotions.filter((p) => p.channel === 'eigen')
-          return { pricing: { ...seed, activationCents: s.pricing.activationCents, gifts: s.pricing.gifts, promotions: [...seed.promotions, ...mine] } }
+          return { pricing: addMissingSeedItems({ ...seed, activationCents: s.pricing.activationCents, gifts: s.pricing.gifts, promotions: [...seed.promotions.filter((p) => p.channel !== 'eigen'), ...mine] }, seed) }
         }),
       upsertOffer: (offer) => set((s) => ({ offers: s.offers.some((o) => o.id === offer.id) ? s.offers.map((o) => (o.id === offer.id ? offer : o)) : [...s.offers, offer] })),
       deleteOffer: (id) => set((s) => ({ offers: s.offers.filter((o) => o.id !== id) })),
@@ -133,7 +133,7 @@ export const useData = create<DataState>()(
     {
       // De sleutel blijft gelijk tussen versies, zodat instellingen en prijzen een app-update overleven.
       name: 'overstapadvies.data.v1',
-      version: 3,
+      version: 4,
       migrate: (persisted, version) => {
         const state = persisted as Partial<DataState> & { catalog?: CatalogV2 }
         if (version < 3) {
@@ -148,6 +148,8 @@ export const useData = create<DataState>()(
           delete state.catalog
           state.offers = (state.offers ?? []).filter((o) => !o.id.startsWith('sample-') && !o.isExample)
         }
+        // v4: de drie welkomstacties en hun cadeaus toegevoegd; bestaande regels blijven ongemoeid.
+        if (version === 3 && state.pricing) state.pricing = addMissingSeedItems(state.pricing, seedPricing())
         return state as DataState
       },
     },

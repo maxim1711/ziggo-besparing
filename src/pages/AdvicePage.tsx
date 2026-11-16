@@ -1,9 +1,10 @@
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, ChevronDown, Gift, Minus, MonitorPlay, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, ChevronDown, Minus, MonitorPlay, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ActionBar, CommissionPeek } from '@/components/ActionBar'
 import { AnimatedMoney } from '@/components/AnimatedMoney'
 import { Breakdown } from '@/components/Breakdown'
+import { GiftImage } from '@/components/GiftImage'
 import { ListEditor } from '@/components/ListEditor'
 import { OfferForm, validateOffer } from '@/components/OfferForm'
 import { OptionTabs } from '@/components/OptionTabs'
@@ -439,7 +440,8 @@ function Builder() {
         {tv && <p className="mt-2 text-sm text-muted-foreground">{tv.features.join(' · ')}</p>}
       </section>
 
-      <More label={`Actie kiezen${sel.promotionIds.length ? ` (${sel.promotionIds.length})` : ''}`} defaultOpen>
+      <section>
+        <SectionTitle hint="de klant kiest er één">Welkomstactie</SectionTitle>
         {promos.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Geen gecontroleerde, geldige acties voor dit pakket.{' '}
@@ -448,27 +450,35 @@ function Builder() {
             </Link>
           </p>
         ) : (
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div role="radiogroup" aria-label="Welkomstactie" className="grid gap-2">
             {promos.map((p) => {
               const gift = p.giftId ? pricing.gifts.find((g) => g.id === p.giftId) : undefined
               const blocked = promotionBlockedReason(p, startDate, sel.contractMonths, !!tv)
+              const on = sel.promotionIds.includes(p.id)
               return (
-                <Tile key={p.id} active={sel.promotionIds.includes(p.id)} onClick={() => setSelection({ promotionIds: togglePromotion(pricing, sel.promotionIds, p.id) })} className="min-h-[60px] py-3">
-                  <div className="flex items-start gap-2 pr-8 text-[15px] font-semibold leading-snug">
-                    {gift && <Gift className="mt-0.5 size-4 shrink-0 text-accent" />}
-                    {p.name}
-                  </div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    {blocked ? <span className="font-semibold text-warn">{blocked}</span> : p.channel === 'eigen' ? 'Mijn salesactie' : 'Openbare actie ziggo.nl'}
-                    {gift && ` · cadeau: ${gift.name}`}
-                  </div>
-                </Tile>
+                <button
+                  key={p.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setSelection({ promotionIds: togglePromotion(pricing, sel.promotionIds, p.id) })}
+                  className={cn('relative flex min-h-[72px] items-center gap-4 rounded-2xl border-2 bg-card px-3 py-2.5 text-left transition-all duration-150 active:scale-[.98]', on ? 'border-primary bg-primary-soft/60 shadow-card' : 'border-border hover:border-primary/40')}
+                >
+                  {gift ? <GiftImage src={gift.imageDataUrl} className="size-14 rounded-xl" /> : <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-good-soft text-lg font-bold text-good">€</span>}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] font-semibold leading-snug">{p.name}</span>
+                    <span className="block text-xs text-muted-foreground">{blocked ? <span className="font-semibold text-warn">{blocked}</span> : gift ? 'Cadeau · normale maandprijs' : p.channel === 'eigen' ? 'Maandkorting' : 'Openbare actie ziggo.nl'}</span>
+                  </span>
+                  <span className={cn('grid size-6 shrink-0 place-items-center rounded-full border-2', on ? 'border-primary bg-primary text-white' : 'border-border')}>{on && <Check className="size-3.5" strokeWidth={3} />}</span>
+                </button>
               )
             })}
           </div>
         )}
-        {hiddenPromos > 0 && <p className="text-xs text-muted-foreground">{hiddenPromos} actie(s) verborgen: concept, verlopen of niet voor dit pakket.</p>}
-      </More>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Welkomstacties zijn niet te combineren: een andere kiezen vervangt de vorige.{hiddenPromos > 0 && ` ${hiddenPromos} actie(s) verborgen (concept, verlopen of niet voor dit pakket).`}
+        </p>
+      </section>
 
       <More label={`Vast bellen${sel.phone ? ' (aan)' : ''}`}>
         <div className="rounded-2xl border-2 border-border px-4 py-1">

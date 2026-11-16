@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { compare } from './calc'
 import { buildCustomerView } from './customerView'
 import { emptyCombo, emptyCurrent } from './defaults'
-import { CHECK_MESSAGE, composeOffer, emptySelection, findPrice, migrateCatalogV2, packageKey, parsePricingExport, promotionBlockedReason, staleCount, togglePromotion, type PricingCatalog, type Promotion, type Selection } from './pricing'
+import { addMissingSeedItems, CHECK_MESSAGE, composeOffer, emptySelection, findPrice, migrateCatalogV2, packageKey, parsePricingExport, promotionBlockedReason, staleCount, togglePromotion, type PricingCatalog, type Promotion, type Selection } from './pricing'
 import { seedPricing } from './pricingSeed'
 import { sampleCatalog } from './catalog'
 import type { Offer, VodafoneCombo } from './types'
@@ -376,11 +376,106 @@ describe('source metadata and maintenance', () => {
     old.promotions.push({ ...old.promotions[0], id: 'mine', name: 'Mijn actie', isExample: false, gift: { type: 'soundbar', name: 'Soundbar', imageDataUrl: null, retailValueCents: null, description: '', conditions: '' } })
     old.extras.push({ ...old.extras[0], id: 'mijn-extra', name: 'Mijn extra', isExample: false })
     const m = migrateCatalogV2(old, seedPricing())
-    expect(m.promotions.map((p) => p.id)).toEqual(['promo-3495-12m', 'mine'])
-    expect(m.promotions[1]).toMatchObject({ status: 'concept', channel: 'eigen', giftId: 'gift-mine' })
-    expect(m.gifts.map((g) => g.name)).toEqual(['Soundbar'])
+    expect(m.promotions.map((p) => p.id)).toEqual(['welkom-35', 'welkom-bol', 'welkom-samsung', 'promo-3495-12m', 'mine'])
+    expect(m.promotions[4]).toMatchObject({ status: 'concept', channel: 'eigen', giftId: 'gift-mine' })
+    expect(m.gifts.map((g) => g.id)).toEqual(['gift-bol-450', 'gift-samsung-tv-soundbar', 'gift-mine'])
     expect(m.extras.some((e) => e.id === 'mijn-extra')).toBe(true)
     expect(m.extras.some((e) => e.id.startsWith('vb-'))).toBe(false)
     expect(migrateCatalogV2(undefined, seedPricing())).toEqual(seedPricing())
+  })
+})
+
+describe('welcome offers — exactly one of three', () => {
+  const WELCOME = ['welkom-35', 'welkom-bol', 'welkom-samsung']
+  const REGULAR: Record<string, number[]> = { 'net-200': [4195, 5840, 6440, 7740], 'net-500': [4895, 6540, 7140, 8440], 'net-1000': [5495, 7140, 7740, 9040], 'net-2000': [5995, 7640, 8240, 9540] }
+  const combos = NET.flatMap((n) => [null, ...TVS].map((t, j) => ({ n, t, regular: REGULAR[n][j] })))
+
+  it('all three are preserved in the editable campaign configuration', () => {
+    const promos = seedPricing().promotions.filter((p) => WELCOME.includes(p.id))
+    expect(promos.map((p) => p.id)).toEqual(WELCOME)
+    for (const p of promos) expect(p).toMatchObject({ channel: 'eigen', status: 'gecontroleerd', contractMonths: 24, exclusiveGroup: 'Welkomstactie' })
+    expect(Object.keys(promos[0].fixedPrices)).toHaveLength(16)
+    expect(promos[0].giftId).toBeNull()
+  })
+
+  it.each(combos)('option A: $n + $t → 12 × € 35 then 12 × regular', ({ n, t, regular }) => {
+    const { offer, issues } = build(sel({ internetId: n, tvId: t, promotionIds: ['welkom-35'] }))
+    expect(issues.filter((i) => i.blocking)).toEqual([])
+    const r = run(offer!)
+    expect(r.months.slice(0, 12).every((m) => m.newCents === 3500)).toBe(true)
+    expect(r.months.slice(12).every((m) => m.newCents === regular)).toBe(true)
+    expect(r.new24Cents).toBe(12 * 3500 + 12 * regular)
+    expect(offer!.gift).toBeNull()
+    expect(offer!.contractMonths).toBe(24)
+    expect(offer!.promoName).toBe('12 maanden € 35 per maand')
+  })
+
+  it.each(combos)('options B and C: $n + $t pays the regular price for 24 months', ({ n, t, regular }) => {
+    for (const [id, gift] of [['welkom-bol', 'bol cadeaukaart van € 450'], ['welkom-samsung', 'Samsung 55-inch 4K-tv + soundbar']]) {
+      const { offer, issues } = build(sel({ internetId: n, tvId: t, promotionIds: [id] }))
+      expect(issues.filter((i) => i.blocking)).toEqual([])
+      expect(offer!.promoMonths).toBe(0)
+      expect(offer!.discounts).toEqual([])
+      expect(run(offer!).new24Cents).toBe(24 * regular)
+      expect(offer!.gift?.name).toBe(gift)
+    }
+  })
+
+  it('selecting another offer deselects the previous one', () => {
+    const c = cat()
+    let ids: string[] = []
+    for (const id of WELCOME) {
+      ids = togglePromotion(c, ids, id)
+      expect(ids).toEqual([id])
+    }
+    expect(togglePromotion(c, ['welkom-samsung'], 'promo-3495-12m')).toEqual(['promo-3495-12m'])
+    expect(togglePromotion(c, ['welkom-35'], 'welkom-35')).toEqual([])
+  })
+
+  it('cannot be stacked even if all three end up selected', () => {
+    for (const order of [WELCOME, [...WELCOME].reverse(), ['welkom-bol', 'welkom-35', 'welkom-samsung']]) {
+      const o = build(sel({ tvId: 'tv-start', promotionIds: order })).offer!
+      const single = build(sel({ tvId: 'tv-start', promotionIds: [order[0]] })).offer!
+      expect(run(o).new24Cents).toBe(run(single).new24Cents)
+      expect(o.gift).toEqual(single.gift)
+      expect(o.promoName).toBe(single.promoName)
+    }
+  })
+
+  it('two gift promotions never combine, even in different groups', () => {
+    const c = cat()
+    c.promotions.find((p) => p.id === 'welkom-samsung')!.exclusiveGroup = 'Andere groep'
+    expect(togglePromotion(c, ['welkom-bol'], 'welkom-samsung')).toEqual(['welkom-samsung'])
+    const o = build(sel({ promotionIds: ['welkom-bol', 'welkom-samsung'] }), c).offer!
+    expect(o.gift?.name).toBe('bol cadeaukaart van € 450')
+    expect(o.promoName).toBe('bol cadeaukaart van € 450')
+  })
+
+  it('gift value (€ 450 / € 898) is never added to the cash savings', () => {
+    const plain = run(build(sel({ internetId: 'net-500', tvId: 'tv-complete' })).offer!, 8000)
+    for (const id of ['welkom-bol', 'welkom-samsung']) {
+      const r = run(build(sel({ internetId: 'net-500', tvId: 'tv-complete', promotionIds: [id] })).offer!, 8000)
+      expect(r.totalSavingsCents).toBe(plain.totalSavingsCents)
+      expect(r.totalSavingsCents).toBe(24 * 8000 - 24 * 7140)
+    }
+    expect(seedPricing().gifts.map((g) => g.retailValueCents)).toEqual([45000, 89800])
+  })
+
+  it('€ 35 with fixed telephone is not assumed', () => {
+    expect(blocking(sel({ tvId: 'tv-start', phone: true, promotionIds: ['welkom-35'] }))[0].overrideKey).toBe('promo:welkom-35')
+  })
+
+  it('gift images are bundled, base-relative paths (no root-relative or external URLs)', () => {
+    for (const g of seedPricing().gifts) expect(g.imageDataUrl).toMatch(/^gifts\/[a-z-]+\.svg$/)
+  })
+
+  it('updating an existing configuration adds the offers without touching existing rows', () => {
+    const mine = cat()
+    mine.promotions = [{ ...mine.promotions.find((p) => p.id === 'welkom-35')!, name: 'Door mij aangepast', fixedPrices: {} }]
+    mine.gifts = []
+    const merged = addMissingSeedItems(mine, seedPricing())
+    expect(merged.promotions.find((p) => p.id === 'welkom-35')!.name).toBe('Door mij aangepast')
+    expect(merged.promotions.map((p) => p.id).sort()).toEqual(['promo-3495-12m', 'welkom-35', 'welkom-bol', 'welkom-samsung'])
+    expect(merged.gifts).toHaveLength(2)
   })
 })

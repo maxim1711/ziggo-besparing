@@ -1,4 +1,5 @@
 import { compare, newMonthlyCost } from './calc'
+import { formatDateNl } from './dates'
 import type { Cents } from './money'
 import { buildInsights, buildSummary } from './insights'
 import type { ComparisonInput, ComparisonResult, CurrentSubscription, Insight, Offer, VodafoneCombo } from './types'
@@ -82,4 +83,13 @@ export function priceStory(view: CustomerView): PriceStory {
   const last = segs[segs.length - 1]
   if (after !== last.cents) later.push({ label: `Na ${result.period} maanden`, cents: after, estimate: true })
   return { nowCents: segs[0].cents, nowLabel: segs.length > 1 || later.length > 0 ? months(segs[0].to) : 'Vaste prijs, geen tijdelijke actieprijs', later }
+}
+
+/** Geldigheid in één zin, voor PDF, afdruk en gedeelde tekst. */
+export function validityText(offer: CustomerOffer): string {
+  if (offer.pricesVerifiedOn !== undefined || offer.promoValidTo !== undefined) {
+    const parts = [offer.promoValidTo ? `Actie geldig tot en met ${formatDateNl(offer.promoValidTo)}.` : offer.promoName ? 'Actie geldig zolang de actievoorwaarden gelden.' : '', offer.pricesVerifiedOn ? `Prijzen gecontroleerd op ${formatDateNl(offer.pricesVerifiedOn)}.` : '']
+    return parts.filter(Boolean).join(' ')
+  }
+  return `Aanbieding geldig van ${formatDateNl(offer.validFrom)} tot en met ${formatDateNl(offer.validTo)} (versie ${offer.version}).`
 }

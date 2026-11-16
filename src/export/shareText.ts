@@ -1,6 +1,6 @@
 import { formatDateNl } from '@/engine/dates'
 import { formatEuro } from '@/engine/money'
-import { priceSegments, segmentLabel, type CustomerView } from '@/engine/customerView'
+import { priceSegments, segmentLabel, validityText, type CustomerView } from '@/engine/customerView'
 import { kindLabel } from '@/lib/utils'
 
 const eur = (c: number) => formatEuro(c, { plainSpace: true })
@@ -11,6 +11,7 @@ export function buildShareText(view: CustomerView): string {
   const lines: string[] = [`*Overstapadvies* (${formatDateNl(view.startDate)})`, '']
   if (result.currentKnown) lines.push(`Huidig: ${current.provider || 'huidige aanbieder'}, ${eur(result.months[0].currentCents)} per maand`)
   lines.push(`Voorstel: ${offer.provider} ${offer.name} (${kindLabel(offer.kind)}, ${offer.speedMbps} Mbit/s, contract ${offer.contractMonths} maanden)`)
+  if (offer.promoName) lines.push(`Welkomstactie: ${offer.promoName}`)
   for (const s of priceSegments(result)) lines.push(`• ${segmentLabel(s)}: ${eur(s.cents)} per maand${s.from > offer.contractMonths ? ' (schatting)' : ''}`)
   if (result.oneTime.totalCents > 0) lines.push(`• Eenmalige kosten: ${eur(result.oneTime.totalCents)}`)
   lines.push('')
@@ -23,7 +24,7 @@ export function buildShareText(view: CustomerView): string {
   if (result.comboSavingsPeriodCents > 0) lines.push(`Waarvan Vodafone-combinatievoordeel: ${eur(result.comboSavingsPeriodCents)}${combo.extraBenefits ? ` (+ ${combo.extraBenefits})` : ''}`)
   if (offer.gift) lines.push(`Cadeau volgens actievoorwaarden: ${offer.gift.name || 'actieproduct'} (waarde niet meegerekend als besparing)`)
   lines.push('')
-  lines.push(`Aanbieding geldig t/m ${formatDateNl(offer.validTo)}.${offer.isExample ? ' Let op: voorbeeldprijzen, nog te controleren.' : ''}`)
+  lines.push(`${validityText(offer)}${offer.isExample ? ' Let op: voorbeeldprijzen, nog te controleren.' : ''}`)
   lines.push('Indicatieve berekening incl. btw; de actievoorwaarden van de aanbieder zijn leidend.')
   return lines.join('\n')
 }

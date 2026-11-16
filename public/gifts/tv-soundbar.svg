@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-label="Illustratie van een televisie met soundbar">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4effc"/><stop offset="1" stop-color="#fff1e4"/></linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6d28d9"/><stop offset=".55" stop-color="#2b4fd8"/><stop offset="1" stop-color="#fb923c"/></linearGradient>
+  </defs>
+  <rect width="640" height="480" fill="url(#bg)"/>
+  <ellipse cx="320" cy="412" rx="230" ry="14" fill="#1e1632" opacity=".1"/>
+  <rect x="96" y="60" width="448" height="262" rx="12" fill="#17121f"/>
+  <rect x="104" y="68" width="432" height="246" rx="6" fill="url(#screen)"/>
+  <path d="M104 250l96-80 70 56 96-104 170 150v36a6 6 0 0 1-6 6H110a6 6 0 0 1-6-6z" fill="#fff" opacity=".16"/>
+  <circle cx="452" cy="126" r="24" fill="#fff" opacity=".35"/>
+  <path d="M250 322h140l10 26H240z" fill="#2a2338"/>
+  <rect x="216" y="346" width="208" height="8" rx="4" fill="#17121f"/>
+  <rect x="140" y="372" width="360" height="34" rx="17" fill="#17121f"/>
+  <g fill="#4b4360"><circle cx="176" cy="389" r="3"/><circle cx="190" cy="389" r="3"/><circle cx="204" cy="389" r="3"/><circle cx="218" cy="389" r="3"/><circle cx="422" cy="389" r="3"/><circle cx="436" cy="389" r="3"/><circle cx="450" cy="389" r="3"/><circle cx="464" cy="389" r="3"/></g>
+  <rect x="306" y="386" width="28" height="6" rx="3" fill="#fb923c"/>
+  <text x="320" y="452" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="18" fill="#6b6480">Illustratie – geen productfoto</text>
+</svg>

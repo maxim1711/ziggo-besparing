@@ -185,6 +185,7 @@ export function togglePromotion(catalog: PricingCatalog, selected: string[], id:
     if (!other) return false
     if (group && other.exclusiveGroup?.trim().toLowerCase() === group) return false
     if (isFixedPrice(promo) && isFixedPrice(other)) return false
+    if (promo.giftId && other.giftId) return false
     return true
   })
   return [...kept, id]
@@ -309,6 +310,8 @@ export function composeOffer(catalog: PricingCatalog, sel: Selection, today: Iso
   let gift: Gift | null = null
   let promoValidTo: IsoDate | null = null
   let fixedUsed = false
+  let giftUsed = false
+  const promoNames: string[] = []
   for (const id of sel.promotionIds) {
     const p = catalog.promotions.find((x) => x.id === id)
     if (!p) continue
@@ -322,6 +325,8 @@ export function composeOffer(catalog: PricingCatalog, sel: Selection, today: Iso
       if (seenGroups.has(group)) continue
       seenGroups.add(group)
     }
+    // Nooit twee welkomstcadeaus, ook niet als ze (per ongeluk) in verschillende groepen staan.
+    if (p.giftId && giftUsed) continue
     if (isFixedPrice(p)) {
       if (fixedUsed) continue
       fixedUsed = true
@@ -339,6 +344,8 @@ export function composeOffer(catalog: PricingCatalog, sel: Selection, today: Iso
       lines.push({ kind: 'discount', label: p.name, cents: -p.monthlyDiscountCents, note: p.durationMonths ? `${p.durationMonths} maanden` : 'hele looptijd' })
     }
     oneTimeDiscount += p.oneTimeDiscountCents
+    if (p.giftId) giftUsed = true
+    promoNames.push(p.name)
     if (p.giftId && !gift) {
       const g = catalog.gifts.find((x) => x.id === p.giftId && x.available)
       if (g) {
@@ -384,6 +391,7 @@ export function composeOffer(catalog: PricingCatalog, sel: Selection, today: Iso
     conditions: conditions.join(' '),
     internalNotes: '',
     includes,
+    promoName: promoNames.join(' + ') || undefined,
     promoValidTo,
     pricesVerifiedOn: oldest(verifiedDates),
   }
@@ -486,4 +494,13 @@ export function migrateCatalogV2(old: CatalogV2 | undefined, seed: PricingCatalo
     })
   const taken = new Set(seed.extras.map((e) => e.id))
   return { ...seed, extras: [...seed.extras, ...extras.filter((e) => !taken.has(e.id))], gifts: [...seed.gifts, ...gifts], promotions: [...seed.promotions, ...promotions] }
+}
+
+/**
+ * Voegt nieuwe basisacties en -cadeaus toe aan een bestaande configuratie.
+ * Bestaande regels (ook door de adviseur aangepaste) blijven exact zoals ze zijn.
+ */
+export function addMissingSeedItems(current: PricingCatalog, seed: PricingCatalog): PricingCatalog {
+  const missing = <T extends { id: string }>(mine: T[], theirs: T[]) => theirs.filter((t) => !mine.some((m) => m.id === t.id))
+  return { ...current, gifts: [...current.gifts, ...missing(current.gifts, seed.gifts)], promotions: [...current.promotions, ...missing(current.promotions, seed.promotions)] }
 }

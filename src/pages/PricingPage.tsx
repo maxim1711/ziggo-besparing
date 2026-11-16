@@ -1,5 +1,6 @@
 import { AlertTriangle, Check, Download, ExternalLink, Gift as GiftIcon, Pencil, Plus, RotateCcw, Search, Trash2, Upload } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
+import { GiftImage } from '@/components/GiftImage'
 import { Page, PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, EmptyState } from '@/components/ui/card'
@@ -687,7 +688,7 @@ function GiftsPanel({ q }: { q: string }) {
                 sub={`${g.description || 'Geen omschrijving'} · gekoppeld aan ${l.pricing.promotions.filter((p) => p.giftId === g.id).length} actie(s)`}
                 right={
                   <div className="flex items-center gap-3">
-                    {g.imageDataUrl && <img src={g.imageDataUrl} alt="" className="size-12 rounded-lg border bg-white object-contain" />}
+                    <GiftImage src={g.imageDataUrl} className="size-12 rounded-lg" />
                     <div>
                       <Switch checked={g.available} onCheckedChange={(available) => l.patchItem(g.id, { available })} label="Beschikbaar" compact />
                     </div>
@@ -724,9 +725,9 @@ function GiftsPanel({ q }: { q: string }) {
             <Field label="Adviesprijs (optioneel, alleen voor uzelf)" hint="Wordt niet als besparing getoond">
               <MoneyInput value={e.retailValueCents} onChange={(c) => l.patch({ retailValueCents: c })} placeholder="—" />
             </Field>
-            <Field label="Productfoto (optioneel)" hint="Gebruik alleen beeld dat u mag gebruiken">
+            <Field label="Afbeelding" hint="Meegeleverd is een illustratie. Upload alleen een productfoto als model en gebruiksrecht kloppen.">
               <div className="flex items-center gap-2">
-                {e.imageDataUrl && <img src={e.imageDataUrl} alt="" className="size-12 rounded-lg border bg-white object-contain" />}
+                <GiftImage src={e.imageDataUrl} className="size-12 rounded-lg" />
                 <Button asChild size="sm">
                   <label className="cursor-pointer">
                     {e.imageDataUrl ? 'Andere foto' : 'Foto kiezen'}

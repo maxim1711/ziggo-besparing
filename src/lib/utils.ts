@@ -29,3 +29,14 @@ export function downloadFile(filename: string, content: string, mime: string) {
 }
 
 export const kindLabel = (kind: 'internet' | 'internet_tv') => (kind === 'internet' ? 'Alleen internet' : 'Internet + TV')
+
+/**
+ * Maakt van een opgeslagen afbeeldingsverwijzing een bruikbare URL.
+ * Geüploade foto's zijn data-URL's; meegeleverde afbeeldingen zijn paden in `public/`
+ * en krijgen het basispad van de app ervoor (werkt dus ook in een submap op GitHub Pages).
+ */
+export function assetUrl(src: string | null | undefined): string | null {
+  if (!src) return null
+  if (/^(data:|blob:|https?:)/.test(src)) return src
+  return `${import.meta.env.BASE_URL}${src.replace(/^\/+/, '')}`
+}

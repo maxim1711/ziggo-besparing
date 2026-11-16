@@ -4,8 +4,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
 
 export default defineConfig({
-  // Relatieve paden: de build werkt op elk adres, ook in een submap (bv. GitHub Pages).
-  base: './',
+  // GitHub Pages serveert de app onder deze submap. NIET wijzigen: assets, manifest en
+  // service worker (scope) zijn hierop afgestemd. Gebruik in code import.meta.env.BASE_URL.
+  base: '/ziggo-besparing/',
   resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
   plugins: [
     react(),
@@ -22,7 +23,9 @@ export default defineConfig({
         background_color: '#faf9fc',
         display: 'standalone',
         orientation: 'any',
-        start_url: '.',
+        // Relatief t.o.v. het manifest, dus altijd binnen de submap van de app.
+        start_url: './',
+        scope: './',
         icons: [
           { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
