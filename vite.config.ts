@@ -4,8 +4,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
 
 export default defineConfig({
+  base: '/overstappen/',
   // Relatieve paden: de build werkt op elk adres, ook in een submap (bv. GitHub Pages).
-  base: './',
   resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
   plugins: [
     react(),
