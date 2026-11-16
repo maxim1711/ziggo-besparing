@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 260 25% 98%;
+  --foreground: 258 30% 12%;
+  --card: 0 0% 100%;
+  --muted: 260 20% 95%;
+  --muted-foreground: 258 10% 40%;
+  --border: 260 18% 90%;
+  --primary: 263 70% 45%;
+  --primary-soft: 262 80% 96%;
+  --accent: 24 95% 53%;
+  --accent-soft: 30 100% 95%;
+  --good: 158 75% 28%;
+  --good-soft: 152 60% 94%;
+  --warn: 18 85% 42%;
+  --warn-soft: 28 100% 94%;
+}
+
+@layer base {
+  * { @apply border-border; }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  :focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 2px; }
+  input[type='date'] { min-height: 48px; }
+}
+
+@layer utilities {
+  .tnum { font-variant-numeric: tabular-nums; }
+  .safe-b { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-t { padding-top: env(safe-area-inset-top); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+
+@media print {
+  body { background: #fff; }
+  .no-print { display: none !important; }
+  .print-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; padding: 0 !important; max-width: none !important; }
+  @page { size: A4; margin: 16mm; }
+}
