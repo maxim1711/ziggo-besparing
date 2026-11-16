@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
 
 export default defineConfig({
-  base: '/overstappen/',
+  base: '/ziggo-besparing/',
   // Relatieve paden: de build werkt op elk adres, ook in een submap (bv. GitHub Pages).
   resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
   plugins: [
