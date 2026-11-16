@@ -20,8 +20,8 @@ export default function SettingsPage() {
   const setCommission = (patch: Partial<typeof settings.commission>) => updateSettings({ commission: { ...settings.commission, ...patch } })
 
   const exportAll = () => {
-    const { offers, catalog, settings, consultations, followUps, outcomes } = data
-    downloadFile(`overstapadvies-backup-${todayIso()}.json`, JSON.stringify({ app: 'overstapadvies', version: 2, offers, catalog, settings, consultations, followUps, outcomes }, null, 2), 'application/json')
+    const { offers, pricing, settings, consultations, followUps, outcomes } = data
+    downloadFile(`overstapadvies-backup-${todayIso()}.json`, JSON.stringify({ app: 'overstapadvies', version: 3, offers, pricing, settings, consultations, followUps, outcomes }, null, 2), 'application/json')
   }
 
   return (

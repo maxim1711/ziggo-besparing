@@ -89,10 +89,10 @@ export default function PresentationPage() {
   const [next, setNext] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  if (!active || active.missing.length > 0) {
+  if (!active || active.blocked) {
     return (
       <div className="grid h-full place-items-center">
-        <EmptyState icon={<Info />} title="Nog niets om te tonen" text={active ? `Er ontbreekt nog een prijs: ${active.missing.join(', ')}.` : 'Stel eerst een pakket samen.'} action={<Button variant="primary" onClick={() => navigate('/')}>Naar het pakket</Button>} />
+        <EmptyState icon={<Info />} title="Nog niets om te tonen" text={active ? 'Er moet nog een prijs of combinatie worden gecontroleerd.' : 'Stel eerst een pakket samen.'} action={<Button variant="primary" onClick={() => navigate('/')}>Naar het pakket</Button>} />
       </div>
     )
   }
@@ -102,6 +102,7 @@ export default function PresentationPage() {
   const story = priceStory(v)
   const includes = offer.includes ?? [offer.name]
   const comboOn = combo.hasVodafone && combo.eligible && combo.monthlyDiscountCents > 0
+  const mobile = combo.hasVodafone && combo.eligible ? (combo.mobileInvoiceDiscountCents ?? 0) : 0
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-y-auto bg-white">
@@ -149,6 +150,11 @@ export default function PresentationPage() {
         <section className="space-y-4">
           <Result v={v} />
           <GiftCard v={v} />
+          {mobile > 0 && (
+            <p className="rounded-2xl border px-5 py-3 text-base text-muted-foreground">
+              Daarnaast: <strong className="tnum text-foreground">{eur(mobile)}</strong> korting per maand op uw Vodafone-rekening. Dit staat los van uw Ziggo-abonnement en is hierboven niet meegeteld.
+            </p>
+          )}
         </section>
       </main>
 
@@ -162,7 +168,7 @@ export default function PresentationPage() {
           </Button>
         </div>
         <p className="mt-2 text-center text-xs text-muted-foreground sm:text-left">
-          Onafhankelijk advies, geen officiële uiting van {offer.provider}. Aanbieding geldig t/m {formatDateNl(offer.validTo)}.{offer.isExample && ' Let op: voorbeeldprijzen, nog niet gecontroleerd.'}
+          Onafhankelijk advies, geen officiële uiting van {offer.provider}.{offer.promoValidTo ? ` Actie geldig t/m ${formatDateNl(offer.promoValidTo)}.` : ''}{offer.pricesVerifiedOn ? ` Prijzen gecontroleerd op ${formatDateNl(offer.pricesVerifiedOn)}.` : ''}{offer.isExample && ' Let op: voorbeeldprijzen, nog niet gecontroleerd.'}
         </p>
       </footer>
 

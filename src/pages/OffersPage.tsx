@@ -1,4 +1,4 @@
-import { Copy, Gift, Pencil, Plus, RotateCcw, Tags, Trash2 } from 'lucide-react'
+import { Copy, Gift, Pencil, Plus, Tags, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { OfferForm, validateOffer } from '@/components/OfferForm'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,7 @@ import { toast } from '@/store/toast'
 import { offerPriceLine } from './AdvicePage'
 
 export default function BundlesPanel() {
-  const { offers, upsertOffer, deleteOffer, duplicateOffer, restoreSampleOffers } = useData()
+  const { offers, upsertOffer, deleteOffer, duplicateOffer } = useData()
   const [editing, setEditing] = useState<Offer | null>(null)
   const [removing, setRemoving] = useState<Offer | null>(null)
   const today = todayIso()
@@ -23,25 +23,16 @@ export default function BundlesPanel() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <p className="max-w-xl text-sm text-muted-foreground">Een bundel heeft één totaalprijs voor internet (en tv). Kies hem in de pakketbouwer onder Geavanceerd; losse onderdelen tellen dan niet nog eens mee.</p>
+        <p className="max-w-xl text-sm text-muted-foreground">Zelf samengestelde vaste aanbiedingen, los van de prijsmatrix. Te kiezen in de pakketbouwer onder Geavanceerd.</p>
         <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            onClick={() => {
-              restoreSampleOffers()
-              toast('Voorbeeldbundels toegevoegd')
-            }}
-          >
-            <RotateCcw /> Voorbeelden terugzetten
-          </Button>
           <Button size="sm" variant="primary" onClick={() => setEditing({ ...emptyOffer(today), validTo: addMonths(today, 1) })}>
-            <Plus /> Nieuwe bundel
+            <Plus /> Nieuwe vaste aanbieding
           </Button>
         </div>
       </div>
       {offers.length === 0 ? (
         <Card>
-          <EmptyState icon={<Tags />} title="Nog geen bundels" text="Bundels zijn optioneel. De pakketbouwer werkt ook met alleen losse onderdelen." action={<Button variant="primary" onClick={() => setEditing({ ...emptyOffer(today), validTo: addMonths(today, 1) })}><Plus /> Nieuwe bundel</Button>} />
+          <EmptyState icon={<Tags />} title="Nog geen vaste aanbiedingen" text="Dit is optioneel. De pakketbouwer werkt met de prijsmatrix." action={<Button variant="primary" onClick={() => setEditing({ ...emptyOffer(today), validTo: addMonths(today, 1) })}><Plus /> Nieuwe vaste aanbieding</Button>} />
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -88,7 +79,7 @@ export default function BundlesPanel() {
         wide
         open={!!editing}
         onOpenChange={(o) => !o && setEditing(null)}
-        title={isNew ? 'Nieuwe bundel' : 'Bundel bewerken'}
+        title={isNew ? 'Nieuwe vaste aanbieding' : 'Vaste aanbieding bewerken'}
         description="Alle bedragen inclusief btw."
         footer={
           <>

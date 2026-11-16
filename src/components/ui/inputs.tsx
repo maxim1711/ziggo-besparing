@@ -158,11 +158,11 @@ export function Segmented<T extends string | number>({ value, onChange, options,
   )
 }
 
-export function Switch({ checked, onCheckedChange, label, description }: { checked: boolean; onCheckedChange: (c: boolean) => void; label: string; description?: string }) {
+export function Switch({ checked, onCheckedChange, label, description, compact }: { checked: boolean; onCheckedChange: (c: boolean) => void; label: string; description?: string; compact?: boolean }) {
   const id = React.useId()
   return (
     <div className="flex min-h-[48px] items-center justify-between gap-4">
-      <label htmlFor={id} className="flex-1 cursor-pointer">
+      <label htmlFor={id} className={compact ? 'sr-only' : 'flex-1 cursor-pointer'}>
         <span className="block text-[15px] font-medium">{label}</span>
         {description && <span className="block text-xs text-muted-foreground">{description}</span>}
       </label>

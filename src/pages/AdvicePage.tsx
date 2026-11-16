@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { Field, Input, MoneyInput, NumberInput, Segmented, Select, Switch } from '@/components/ui/inputs'
-import { formatSpeed, isActive, togglePromotion } from '@/engine/catalog'
+import { findPrice, formatSpeed, isVerifiedPrice, promotionBlockedReason, staleCount, togglePromotion, type ExtraCategory, type ExtraService } from '@/engine/pricing'
+import { formatDateNl } from '@/engine/dates'
 import { priceStory } from '@/engine/customerView'
 import { newId } from '@/engine/defaults'
 import { formatEuro } from '@/engine/money'
@@ -21,7 +22,6 @@ import { useData } from '@/store/data'
 import { MAX_OPTIONS, useComparison, useDraft, type OptionComparison } from '@/store/draft'
 
 const PROVIDERS = ['KPN', 'Odido', 'Ziggo', 'Delta', 'Youfone', 'Budget Thuis']
-const eur = (c: number) => formatEuro(c, { decimals: 'auto' })
 
 export function offerPriceLine(o: Offer): string {
   if (o.promoMonths <= 0 || o.promoMonthlyCents === o.regularMonthlyCents) return `${formatEuro(o.regularMonthlyCents)} per maand`
@@ -141,19 +141,22 @@ function StepCurrent() {
           {other && <Input className="mt-2" autoFocus placeholder="Naam aanbieder" value={current.provider} onChange={(e) => setCurrent({ provider: e.target.value })} />}
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <SectionTitle>Wat heeft de klant?</SectionTitle>
-            <Segmented aria-label="Huidig pakket" value={current.hasTv ? 'tv' : 'net'} onChange={(v) => setCurrent({ hasTv: v === 'tv' })} options={[{ value: 'net', label: 'Alleen internet' }, { value: 'tv', label: 'Internet + TV' }]} />
-          </div>
-          <div>
-            <SectionTitle hint="optioneel">Contract loopt tot</SectionTitle>
-            <Input type="date" aria-label="Einddatum huidig contract" value={current.contractEndDate ?? ''} onChange={(e) => setCurrent({ contractEndDate: e.target.value || null })} />
-          </div>
+        <div>
+          <SectionTitle>Wat heeft de klant?</SectionTitle>
+          <Segmented aria-label="Huidig pakket" value={current.hasTv ? 'tv' : 'net'} onChange={(v) => setCurrent({ hasTv: v === 'tv' })} options={[{ value: 'net', label: 'Alleen internet' }, { value: 'tv', label: 'Internet + TV' }]} />
         </div>
 
         <More label="Meer details (optioneel)">
           <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Contract loopt tot">
+              <Input type="date" value={current.contractEndDate ?? ''} onChange={(e) => setCurrent({ contractEndDate: e.target.value || null })} />
+            </Field>
+            <Field label="Kosten om nu op te zeggen" hint="Telt mee als eenmalige kosten">
+              <MoneyInput value={current.cancellationCents} onChange={(c) => setCurrent({ cancellationCents: c ?? 0 })} emptyAsZero />
+            </Field>
+            <Field label="Verwacht nieuw maandbedrag" hint={`Leeg = blijft gelijk; geldt vanaf maand ${current.futureFromMonth}`}>
+              <MoneyInput value={current.futureMonthlyCents} onChange={(c) => setCurrent({ futureMonthlyCents: c })} placeholder="—" />
+            </Field>
             <Field label="Pakketnaam">
               <Input value={current.packageName} onChange={(e) => setCurrent({ packageName: e.target.value })} />
             </Field>
@@ -195,17 +198,9 @@ function StepCurrent() {
               )}
             />
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Kosten om nu op te zeggen" hint="Telt mee als eenmalige kosten">
-              <MoneyInput value={current.cancellationCents} onChange={(c) => setCurrent({ cancellationCents: c ?? 0 })} emptyAsZero />
-            </Field>
-            <Field label="Verwacht nieuw maandbedrag" hint="Leeg = blijft gelijk">
-              <MoneyInput value={current.futureMonthlyCents} onChange={(c) => setCurrent({ futureMonthlyCents: c })} placeholder="—" />
-            </Field>
-            <Field label="Vanaf maand">
-              <NumberInput value={current.futureFromMonth} onChange={(n) => setCurrent({ futureFromMonth: Math.max(1, n ?? 1) })} min={1} max={24} />
-            </Field>
-          </div>
+          <Field label="Verwacht nieuw maandbedrag geldt vanaf maand" className="max-w-[260px]">
+            <NumberInput value={current.futureFromMonth} onChange={(n) => setCurrent({ futureFromMonth: Math.max(1, n ?? 1) })} min={1} max={24} />
+          </Field>
         </More>
 
         <div>
@@ -221,44 +216,113 @@ function StepCurrent() {
 
 /* ---------- stap 2: pakket samenstellen ---------- */
 
+function Stepper({ value, onChange, max, label }: { value: number; onChange: (n: number) => void; max: number; label: string }) {
+  return (
+    <div className="flex items-center gap-1">
+      <button type="button" aria-label={`Minder: ${label}`} disabled={value === 0} onClick={() => onChange(value - 1)} className="grid size-11 place-items-center rounded-full border hover:bg-muted disabled:opacity-30">
+        <Minus className="size-4" />
+      </button>
+      <span className="tnum w-7 text-center text-lg font-semibold">{value}</span>
+      <button type="button" aria-label={`Meer: ${label}`} disabled={value >= max} onClick={() => onChange(value + 1)} className="grid size-11 place-items-center rounded-full border hover:bg-muted disabled:opacity-30">
+        <Plus className="size-4" />
+      </button>
+    </div>
+  )
+}
+
+const EXTRA_GROUPS: { category: ExtraCategory; title: string }[] = [
+  { category: 'sport', title: 'Sport' },
+  { category: 'entertainment', title: 'Film en zenders' },
+  { category: 'bundel', title: 'Voordeelbundels' },
+  { category: 'streaming', title: 'Streaming' },
+]
+
 function Builder() {
-  const catalog = useData((s) => s.catalog)
-  const bundles = useData((s) => s.offers)
+  const pricing = useData((s) => s.pricing)
+  const oldOffers = useData((s) => s.offers)
   const { builds, activeIndex, setSelection, setSnapshot, combo, setCombo, period, setPeriod, startDate, addOption, removeOption } = useDraft()
   const { all, active } = useComparison()
   const build = builds[activeIndex] ?? builds[0]
   const sel = build.selection
   const [editing, setEditing] = useState<Offer | null>(null)
+  const [moreExtras, setMoreExtras] = useState(false)
   const errors = editing ? validateOffer(editing) : []
 
-  const internet = catalog.internet.filter((i) => isActive(i, startDate) || i.id === sel.internetId)
-  const tvs = catalog.tv.filter((t) => t.available || t.id === sel.tvId)
-  const bundle = sel.bundleId ? bundles.find((b) => b.id === sel.bundleId) : undefined
-  const hasTv = bundle ? bundle.kind === 'internet_tv' : !!sel.tvId
-  const tv = catalog.tv.find((t) => t.id === sel.tvId)
-  const extras = catalog.extras.filter((e) => (e.available || sel.extraIds.includes(e.id)) && (!e.requiresTv || hasTv))
-  const promos = catalog.promotions.filter((p) => (isActive(p, startDate) || sel.promotionIds.includes(p.id)) && (!p.requiresTv || hasTv))
-  const comboOn = combo.hasVodafone && combo.eligible
-  const contract = sel.contractMonths ?? active?.offer.contractMonths ?? 24
+  const internet = pricing.internet.filter((i) => i.available || i.id === sel.internetId)
+  const net = pricing.internet.find((i) => i.id === sel.internetId)
+  const tvs = pricing.tv.filter((t) => t.available || t.id === sel.tvId)
+  const tv = pricing.tv.find((t) => t.id === sel.tvId)
+  const states = active?.extraStates ?? {}
+  const priceOf = (internetId: string, tvId: string | null, phone: boolean) => {
+    const p = findPrice(pricing, internetId, tvId, phone)
+    return isVerifiedPrice(p) ? p.cents : null
+  }
+  const base = net ? priceOf(net.id, sel.tvId, false) : null
+  const withPhone = net ? priceOf(net.id, sel.tvId, true) : null
+  const setQty = (id: string, qty: number) => setSelection({ extras: { ...sel.extras, [id]: qty } })
+  const visibleExtra = (e: ExtraService) => (e.available && e.monthlyCents !== null && (!e.requiresTv || !!tv)) || (sel.extras[e.id] ?? 0) > 0
+  const equipment = pricing.extras.filter((e) => e.category === 'apparatuur' && visibleExtra(e))
+  const special = pricing.extras.filter((e) => e.moreOptions && visibleExtra(e))
+  const promos = pricing.promotions.filter((p) => !promotionBlockedReason(p, startDate, sel.contractMonths, !!tv) || sel.promotionIds.includes(p.id)).sort((a, b) => (a.channel === b.channel ? 0 : a.channel === 'eigen' ? -1 : 1))
+  const hiddenPromos = pricing.promotions.length - promos.length
+  const chosenExtras = Object.entries(sel.extras).filter(([id, q]) => q > 0 && pricing.extras.find((e) => e.id === id)?.category !== 'apparatuur').length
+  const chosenEquipment = equipment.reduce((a, e) => a + (sel.extras[e.id] ?? 0), 0)
+
+  const pickInternet = (id: string) => {
+    setSelection({ internetId: id })
+    // Vodafone-referentiebedrag volgt de gekozen snelheid, tot de adviseur het zelf aanpast.
+    const prev = net?.vodafoneDiscountCents ?? null
+    const next = pricing.internet.find((i) => i.id === id)?.vodafoneDiscountCents ?? null
+    if (combo.hasVodafone && next !== null && (combo.monthlyDiscountCents === 0 || combo.monthlyDiscountCents === prev)) setCombo({ monthlyDiscountCents: next })
+  }
+
+  const extraChip = (e: ExtraService) => {
+    const on = (sel.extras[e.id] ?? 0) > 0
+    const included = tv?.includes.includes(e.id)
+    const state = states[e.id]
+    const tag = included ? 'Inbegrepen' : state === 'in_bundel' ? 'Zit in bundel' : state === 'controleren' ? 'Controleren' : e.monthlyCents === null ? 'prijs invullen' : `+ ${formatEuro(e.monthlyCents)}`
+    return (
+      <button
+        key={e.id}
+        type="button"
+        aria-pressed={on}
+        disabled={included}
+        onClick={() => setQty(e.id, on ? 0 : 1)}
+        className={cn(
+          'flex min-h-[48px] items-center gap-2 rounded-full border-2 px-4 py-2 text-left text-sm font-semibold transition-all active:scale-95',
+          included ? 'border-good/30 bg-good-soft text-good' : on ? (state === 'controleren' ? 'border-warn bg-warn-soft text-warn' : 'border-primary bg-primary text-white') : 'border-border bg-card hover:border-primary/40',
+        )}
+      >
+        {(on || included) && <Check className="size-4 shrink-0" strokeWidth={3} />}
+        {e.name}
+        <span className={cn('tnum whitespace-nowrap font-normal', included ? '' : on && state !== 'controleren' ? 'text-white/80' : 'text-muted-foreground')}>{tag}</span>
+      </button>
+    )
+  }
 
   const advanced = (
-    <More label="Geavanceerd" defaultOpen={contract === 12 || builds.length > 1 || !!bundle}>
+    <More label="Geavanceerd" defaultOpen={sel.contractMonths === 12 || builds.length > 1}>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Contractduur" hint="Standaard 24 maanden">
-          <Segmented value={contract} onChange={(m) => setSelection({ contractMonths: m })} options={[{ value: 24, label: '24 maanden' }, { value: 12, label: '12 maanden' }]} />
+          <Segmented value={sel.contractMonths} onChange={(m) => setSelection({ contractMonths: m })} options={[{ value: 24, label: '24 maanden' }, { value: 12, label: '12 maanden' }]} />
         </Field>
         <Field label="Vergelijken over" hint="Standaard 24 maanden">
           <Segmented value={period} onChange={setPeriod} options={[{ value: 24, label: '24 maanden' }, { value: 12, label: '12 maanden' }]} />
         </Field>
       </div>
-      {bundles.length > 0 && (
-        <Field label="Vaste bundel gebruiken" hint="Eén totaalprijs voor internet (en tv), in plaats van losse onderdelen.">
-          <Select value={sel.bundleId ?? ''} onChange={(e) => setSelection({ bundleId: e.target.value || null })}>
-            <option value="">Geen – losse onderdelen</option>
-            {bundles.map((b) => (
+      {oldOffers.length > 0 && (
+        <Field label="Eerder opgeslagen vaste aanbieding gebruiken" hint="Uit een vorige versie van de app; staat los van de prijsmatrix.">
+          <Select
+            value=""
+            onChange={(e) => {
+              const o = oldOffers.find((x) => x.id === e.target.value)
+              if (o) setSnapshot(structuredClone(o))
+            }}
+          >
+            <option value="">Kies…</option>
+            {oldOffers.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
-                {b.isExample ? ' (voorbeeld)' : ''}
               </option>
             ))}
           </Select>
@@ -278,7 +342,7 @@ function Builder() {
         )}
         {active && (
           <Button size="sm" variant="ghost" onClick={() => setEditing(structuredClone(active.offer))}>
-            <Pencil /> Prijzen aanpassen voor deze klant
+            <Pencil /> Alles handmatig aanpassen
           </Button>
         )}
       </div>
@@ -339,141 +403,172 @@ function Builder() {
   }
 
   return (
-    <Card className="space-y-7 p-5 sm:p-6">
-      {bundle ? (
-        <section>
-          <SectionTitle>Vaste bundel</SectionTitle>
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-primary bg-primary-soft/60 p-4">
-            <div>
-              <div className="text-lg font-semibold">{bundle.name}</div>
-              <div className="tnum text-sm text-muted-foreground">{offerPriceLine(bundle)}</div>
-            </div>
-            <Button size="sm" variant="ghost" onClick={() => setSelection({ bundleId: null })}>
-              Losse onderdelen kiezen
-            </Button>
-          </div>
-        </section>
-      ) : (
-        <>
-          <section>
-            <SectionTitle>Internetsnelheid</SectionTitle>
-            {internet.length === 0 ? (
-              <p className="rounded-2xl bg-muted p-4 text-sm text-muted-foreground">
-                Er zijn geen beschikbare internetpakketten.{' '}
-                <Link to="/prijzen" className="font-semibold text-primary underline">
-                  Voeg ze toe bij Prijzen &amp; Aanbiedingen
-                </Link>
-                .
-              </p>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-3">
-                {internet.map((i) => {
-                  const promo = i.promoMonthlyCents !== null && i.promoMonths > 0
-                  return (
-                    <Tile key={i.id} active={sel.internetId === i.id} onClick={() => setSelection({ internetId: i.id })}>
-                      <div className="text-2xl font-semibold tracking-tight">{formatSpeed(i.downloadMbps)}</div>
-                      {i.regularMonthlyCents === null ? (
-                        <div className="mt-1 text-sm font-semibold text-warn">Prijs ontbreekt</div>
-                      ) : (
-                        <div className="tnum mt-1 text-sm text-muted-foreground">
-                          <span className="font-semibold text-foreground">{formatEuro(promo ? i.promoMonthlyCents! : i.regularMonthlyCents)}</span> p/m
-                          {promo && <span className="block text-xs">daarna {formatEuro(i.regularMonthlyCents)}</span>}
-                        </div>
-                      )}
-                    </Tile>
-                  )
-                })}
-              </div>
-            )}
-          </section>
-
-          <section>
-            <SectionTitle>Televisie</SectionTitle>
-            <Segmented aria-label="Televisie" value={sel.tvId ? 'tv' : 'net'} onChange={(v) => setSelection({ tvId: v === 'tv' ? (tvs[0]?.id ?? null) : null, extraReceivers: 0 })} options={[{ value: 'net', label: 'Alleen internet' }, { value: 'tv', label: 'Internet + TV' }]} />
-            {sel.tvId && tvs.length > 1 && (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                {tvs.map((t) => (
-                  <Tile key={t.id} active={sel.tvId === t.id} onClick={() => setSelection({ tvId: t.id })}>
-                    <div className="pr-8 text-[16px] font-semibold">{t.name}</div>
-                    <div className="tnum text-sm text-muted-foreground">{t.monthlyCents === null ? <span className="font-semibold text-warn">Prijs ontbreekt</span> : `+ ${formatEuro(t.monthlyCents)} p/m`}</div>
-                    {t.features && <div className="mt-1 text-xs text-muted-foreground">{t.features}</div>}
-                  </Tile>
-                ))}
-              </div>
-            )}
-            {catalog.tv.length === 0 && sel.tvId === null && <p className="mt-2 text-xs text-muted-foreground">Er zijn nog geen tv-pakketten ingesteld.</p>}
-          </section>
-        </>
-      )}
-
-      {(extras.length > 0 || (tv && !bundle)) && (
-        <section>
-          <SectionTitle hint="optioneel">Extra's</SectionTitle>
-          <div className="flex flex-wrap gap-2">
-            {extras.map((e) => {
-              const on = sel.extraIds.includes(e.id)
-              return (
-                <button key={e.id} type="button" aria-pressed={on} onClick={() => setSelection({ extraIds: on ? sel.extraIds.filter((x) => x !== e.id) : [...sel.extraIds, e.id] })} className={cn('flex h-12 items-center gap-2 rounded-full border-2 px-4 text-sm font-semibold transition-all active:scale-95', on ? 'border-primary bg-primary text-white' : 'border-border bg-card hover:border-primary/40')}>
-                  {on && <Check className="size-4" strokeWidth={3} />}
-                  {e.name}
-                  <span className={cn('tnum font-normal', on ? 'text-white/80' : 'text-muted-foreground')}>{e.monthlyCents === null ? 'prijs ontbreekt' : `+ ${eur(e.monthlyCents)}`}</span>
-                </button>
-              )
-            })}
-            {tv && !bundle && (
-              <div className="flex h-12 items-center gap-1 rounded-full border-2 border-border bg-card pl-4 pr-1 text-sm font-semibold">
-                Extra ontvangers
-                <button type="button" aria-label="Minder ontvangers" disabled={sel.extraReceivers === 0} onClick={() => setSelection({ extraReceivers: sel.extraReceivers - 1 })} className="ml-2 grid size-10 place-items-center rounded-full hover:bg-muted disabled:opacity-30">
-                  <Minus className="size-4" />
-                </button>
-                <span className="tnum w-5 text-center">{sel.extraReceivers}</span>
-                <button type="button" aria-label="Meer ontvangers" disabled={sel.extraReceivers >= 5} onClick={() => setSelection({ extraReceivers: sel.extraReceivers + 1 })} className="grid size-10 place-items-center rounded-full hover:bg-muted disabled:opacity-30">
-                  <Plus className="size-4" />
-                </button>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {promos.length > 0 && (
-        <section>
-          <SectionTitle hint="alleen wat voor deze klant geldt">Acties</SectionTitle>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {promos.map((p) => (
-              <Tile key={p.id} active={sel.promotionIds.includes(p.id)} onClick={() => setSelection({ promotionIds: togglePromotion(catalog, sel.promotionIds, p.id) })} className="min-h-[60px] py-3">
-                <div className="flex items-center gap-2 pr-8 text-[15px] font-semibold">
-                  {p.gift && <Gift className="size-4 shrink-0 text-accent" />}
-                  {p.name}
-                </div>
-                {p.conditions && <div className="mt-0.5 text-xs text-muted-foreground">{p.conditions}</div>}
+    <Card className="space-y-6 p-5 sm:p-6">
+      <section>
+        <SectionTitle>Internet</SectionTitle>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {internet.map((i) => {
+            const cents = priceOf(i.id, null, false)
+            return (
+              <Tile key={i.id} active={sel.internetId === i.id} onClick={() => pickInternet(i.id)}>
+                <div className="text-[22px] font-semibold leading-tight tracking-tight">{formatSpeed(i.downloadMbps)}</div>
+                <div className="tnum mt-1 text-sm text-muted-foreground">{cents === null ? <span className="font-semibold text-warn">Prijs controleren</span> : `${formatEuro(cents)} p/m`}</div>
               </Tile>
-            ))}
-          </div>
-        </section>
-      )}
+            )
+          })}
+        </div>
+      </section>
 
       <section>
-        <SectionTitle hint="optioneel">Vodafone</SectionTitle>
+        <SectionTitle hint={net ? 'totaalprijs per maand, incl. internet' : undefined}>Televisie</SectionTitle>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Tile active={!sel.tvId} onClick={() => setSelection({ tvId: null, phone: false })}>
+            <div className="text-[17px] font-semibold">Geen TV</div>
+            <div className="mt-1 text-sm text-muted-foreground">Alleen internet</div>
+          </Tile>
+          {tvs.map((t) => {
+            const cents = net ? priceOf(net.id, t.id, false) : null
+            return (
+              <Tile key={t.id} active={sel.tvId === t.id} onClick={() => setSelection({ tvId: t.id })}>
+                <div className="pr-7 text-[17px] font-semibold">{t.name}</div>
+                <div className="tnum mt-1 text-sm text-muted-foreground">{!net ? t.features[0] : cents === null ? <span className="font-semibold text-warn">Prijs controleren</span> : `${formatEuro(cents)} p/m`}</div>
+              </Tile>
+            )
+          })}
+        </div>
+        {tv && <p className="mt-2 text-sm text-muted-foreground">{tv.features.join(' · ')}</p>}
+      </section>
+
+      <More label={`Actie kiezen${sel.promotionIds.length ? ` (${sel.promotionIds.length})` : ''}`} defaultOpen>
+        {promos.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Geen gecontroleerde, geldige acties voor dit pakket.{' '}
+            <Link to="/prijzen" className="font-semibold text-primary underline">
+              Acties beheren
+            </Link>
+          </p>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {promos.map((p) => {
+              const gift = p.giftId ? pricing.gifts.find((g) => g.id === p.giftId) : undefined
+              const blocked = promotionBlockedReason(p, startDate, sel.contractMonths, !!tv)
+              return (
+                <Tile key={p.id} active={sel.promotionIds.includes(p.id)} onClick={() => setSelection({ promotionIds: togglePromotion(pricing, sel.promotionIds, p.id) })} className="min-h-[60px] py-3">
+                  <div className="flex items-start gap-2 pr-8 text-[15px] font-semibold leading-snug">
+                    {gift && <Gift className="mt-0.5 size-4 shrink-0 text-accent" />}
+                    {p.name}
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    {blocked ? <span className="font-semibold text-warn">{blocked}</span> : p.channel === 'eigen' ? 'Mijn salesactie' : 'Openbare actie ziggo.nl'}
+                    {gift && ` · cadeau: ${gift.name}`}
+                  </div>
+                </Tile>
+              )
+            })}
+          </div>
+        )}
+        {hiddenPromos > 0 && <p className="text-xs text-muted-foreground">{hiddenPromos} actie(s) verborgen: concept, verlopen of niet voor dit pakket.</p>}
+      </More>
+
+      <More label={`Vast bellen${sel.phone ? ' (aan)' : ''}`}>
         <div className="rounded-2xl border-2 border-border px-4 py-1">
           <Switch
-            checked={comboOn}
-            onCheckedChange={(on) => setCombo({ hasVodafone: on, eligible: on, monthlyDiscountCents: on ? (combo.monthlyDiscountCents || catalog.vodafone.monthlyDiscountCents || 0) : combo.monthlyDiscountCents, extraBenefits: on ? combo.extraBenefits || catalog.vodafone.extraBenefits : combo.extraBenefits })}
-            label="Klant heeft Vodafone en komt in aanmerking"
-            description="Niet elk Vodafone-abonnement geeft recht op combinatievoordeel."
+            checked={sel.phone}
+            onCheckedChange={(phone) => setSelection({ phone })}
+            label="Vast bellen toevoegen"
+            description={!net ? 'Kies eerst een internetpakket.' : base !== null && withPhone !== null ? `+ ${formatEuro(withPhone - base)} per maand (Alles-in-1). Belkosten zelf zijn niet meegerekend.` : sel.phone ? 'Voor deze combinatie is geen gecontroleerde prijs ingesteld.' : tv ? 'Prijs voor deze combinatie nog niet ingesteld.' : 'Alleen ingesteld in combinatie met tv.'}
           />
-          {comboOn && (
-            <div className="grid animate-fade-up gap-3 pb-3 pt-1 sm:grid-cols-2">
-              <Field label="Korting per maand" error={combo.monthlyDiscountCents === 0 ? 'Vul de gecontroleerde korting in; zonder bedrag telt er niets mee.' : null}>
-                <MoneyInput value={combo.monthlyDiscountCents} onChange={(c) => setCombo({ monthlyDiscountCents: c ?? 0 })} emptyAsZero placeholder="Invullen" />
-              </Field>
-              <Field label="Extra voordeel (optioneel)">
-                <Input value={combo.extraBenefits} onChange={(e) => setCombo({ extraBenefits: e.target.value })} placeholder="Bijv. dubbele data" />
-              </Field>
+        </div>
+      </More>
+
+      <More label={`Extra tv en wifi${chosenEquipment ? ` (${chosenEquipment})` : ''}`}>
+        <div className="divide-y rounded-2xl border-2 border-border">
+          {equipment.map((e) => {
+            const included = e.id === 'x-next-mini' ? (tv?.includedReceivers ?? 0) : e.id === 'x-wifi-extender' ? (net?.includedExtenders ?? 0) : 0
+            return (
+              <div key={e.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                <div>
+                  <div className="text-[15px] font-semibold">{e.name}</div>
+                  <div className="tnum text-xs text-muted-foreground">
+                    {formatEuro(sel.overrides[e.id] ?? e.monthlyCents ?? 0)} per stuk per maand{included > 0 && ` · ${included} al inbegrepen`}
+                  </div>
+                </div>
+                <Stepper label={e.name} value={sel.extras[e.id] ?? 0} max={e.maxQuantity} onChange={(n) => setQty(e.id, n)} />
+              </div>
+            )
+          })}
+          {equipment.length === 0 && <p className="px-4 py-3 text-sm text-muted-foreground">Geen apparatuur beschikbaar voor dit pakket.</p>}
+        </div>
+        {equipment.some((e) => (sel.extras[e.id] ?? 0) > 0) && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {equipment
+              .filter((e) => (sel.extras[e.id] ?? 0) > 0)
+              .map((e) => (
+                <Field key={e.id} label={`Afwijkende prijs ${e.name}`} hint="Alleen bij een toegestane actie; leeg = standaardprijs">
+                  <MoneyInput
+                    value={sel.overrides[e.id] ?? null}
+                    placeholder={formatEuro(e.monthlyCents ?? 0).replace('€', '').trim()}
+                    onChange={(c) => {
+                      const next = { ...sel.overrides }
+                      if (c === null) delete next[e.id]
+                      else next[e.id] = c
+                      setSelection({ overrides: next })
+                    }}
+                  />
+                </Field>
+              ))}
+          </div>
+        )}
+      </More>
+
+      <More label={`Sport en entertainment${chosenExtras ? ` (${chosenExtras})` : ''}`}>
+        {EXTRA_GROUPS.map((g) => {
+          const items = pricing.extras.filter((e) => e.category === g.category && !e.moreOptions && (visibleExtra(e) || tv?.includes.includes(e.id)))
+          if (items.length === 0) return null
+          return (
+            <div key={g.category}>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{g.title}</h3>
+              <div className="flex flex-wrap gap-2">{items.map(extraChip)}</div>
+            </div>
+          )
+        })}
+        {!tv && <p className="text-sm text-muted-foreground">Sport- en zenderpakketten zijn er alleen bij een tv-pakket.</p>}
+        {special.length > 0 && (
+          <div>
+            <button type="button" onClick={() => setMoreExtras((m) => !m)} aria-expanded={moreExtras} className="min-h-[44px] text-sm font-semibold text-muted-foreground underline-offset-4 hover:underline">
+              {moreExtras ? 'Minder opties' : 'Meer opties'}
+            </button>
+            {moreExtras && <div className="mt-1 flex flex-wrap gap-2">{special.map(extraChip)}</div>}
+          </div>
+        )}
+      </More>
+
+      <More label={`Vodafone-voordeel${combo.hasVodafone ? (combo.eligible ? ' (bevestigd)' : ' (nog controleren)') : ''}`}>
+        <div className="rounded-2xl border-2 border-border px-4 py-1">
+          <Switch checked={combo.hasVodafone} onCheckedChange={(on) => setCombo({ hasVodafone: on, eligible: on ? combo.eligible : false, monthlyDiscountCents: on && combo.monthlyDiscountCents === 0 ? (net?.vodafoneDiscountCents ?? 0) : combo.monthlyDiscountCents })} label="Heeft u Vodafone?" />
+          {combo.hasVodafone && (
+            <div className="animate-fade-up space-y-3 border-t pb-3 pt-2">
+              <div className="rounded-xl bg-accent-soft px-3 py-2 text-sm">
+                <strong>Combinatievoordeel controleren.</strong> <span className="text-muted-foreground">Niet elk abonnement komt in aanmerking en bestaande klanten kunnen oude voordelen hebben. Tot u bevestigt, telt er niets mee.</span>
+              </div>
+              <Switch checked={combo.eligible} onCheckedChange={(eligible) => setCombo({ eligible })} label="Ik heb gecontroleerd dat de klant in aanmerking komt" />
+              {combo.eligible && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Korting op de Ziggo-rekening" hint={net?.vodafoneDiscountCents != null ? `Referentie bij ${formatSpeed(net.downloadMbps)}: ${formatEuro(net.vodafoneDiscountCents)} per maand` : 'Per maand'} error={combo.monthlyDiscountCents === 0 ? 'Vul het bevestigde bedrag in; zonder bedrag telt er niets mee.' : null}>
+                    <MoneyInput value={combo.monthlyDiscountCents} onChange={(c) => setCombo({ monthlyDiscountCents: c ?? 0 })} emptyAsZero placeholder="Invullen" />
+                  </Field>
+                  <Field label="Korting op de Vodafone-rekening" hint="Alleen bij bevestigd bedrag. Wordt apart getoond en niet van de Ziggo-prijs afgetrokken.">
+                    <MoneyInput value={combo.mobileInvoiceDiscountCents ?? 0} onChange={(c) => setCombo({ mobileInvoiceDiscountCents: c ?? 0 })} emptyAsZero placeholder="—" />
+                  </Field>
+                  <Field label="Extra voordeel (optioneel)" className="sm:col-span-2">
+                    <Input value={combo.extraBenefits} onChange={(e) => setCombo({ extraBenefits: e.target.value })} placeholder="Bijv. dubbele data" />
+                  </Field>
+                </div>
+              )}
             </div>
           )}
         </div>
-      </section>
+      </More>
 
       {advanced}
       {editDialog}
@@ -490,9 +585,30 @@ export function resultPhrase(o: OptionComparison['view']): { label: string; cent
   return { label: `Zelfde kosten over ${r.period} maanden`, cents: 0, tone: 'neutral' }
 }
 
+/** Bedrag invullen en bewust bevestigen (niet per toetsaanslag opslaan). */
+function ConfirmAmount({ label, placeholder, note, onConfirm }: { label: string; placeholder: string; note: string; onConfirm: (cents: number) => void }) {
+  const [value, setValue] = useState<number | null>(null)
+  return (
+    <div className="mt-2">
+      <div className="flex max-w-[320px] gap-2">
+        <div className="flex-1">
+          <MoneyInput aria-label={label} value={value} placeholder={placeholder} onChange={setValue} />
+        </div>
+        <Button variant="primary" disabled={value === null} onClick={() => value !== null && onConfirm(value)}>
+          Bevestigen
+        </Button>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">{note}</p>
+    </div>
+  )
+}
+
 function Summary() {
   const navigate = useNavigate()
   const { active } = useComparison()
+  const pricing = useData((s) => s.pricing)
+  const updatePricing = useData((s) => s.updatePricing)
+  const { builds, activeIndex, setSelection } = useDraft()
   const [calc, setCalc] = useState(false)
   if (!active) {
     return (
@@ -508,9 +624,12 @@ function Summary() {
     )
   }
   const { offer, view } = active
+  const sel = builds[activeIndex]?.selection
   const story = priceStory(view)
   const res = resultPhrase(view)
-  const blocked = active.missing.length > 0
+  const blockers = active.issues.filter((i) => i.blocking)
+  const notes = active.issues.filter((i) => !i.blocking)
+  const stale = staleCount(pricing, view.startDate)
   return (
     <Card className="space-y-5 p-6">
       <div>
@@ -521,55 +640,86 @@ function Summary() {
         <h2 className="mt-1 text-xl font-semibold leading-tight tracking-tight">{offer.name}</h2>
       </div>
 
-      <div>
-        <div className="flex items-baseline gap-2">
-          <AnimatedMoney cents={story.nowCents} className="text-5xl font-semibold tracking-tight" />
-          <span className="text-muted-foreground">per maand</span>
-        </div>
-        <ul className="mt-2 space-y-0.5 text-[15px] text-muted-foreground">
-          <li>{story.nowLabel}</li>
-          {story.later.map((l) => (
-            <li key={l.label}>
-              {l.label} <span className="tnum font-semibold text-foreground">{formatEuro(l.cents)}</span> per maand
-            </li>
-          ))}
-          <li>
-            {offer.contractMonths} maanden contract
-            {view.result.oneTime.totalCents > 0 && <> · eenmalig {formatEuro(view.result.oneTime.totalCents)}</>}
-          </li>
-        </ul>
-      </div>
-
-      <div className={cn('flex items-center justify-between gap-3 rounded-2xl px-5 py-4', res.tone === 'good' ? 'bg-good-soft' : res.tone === 'warn' ? 'bg-warn-soft' : 'bg-muted')}>
-        <span className="text-sm font-medium">{res.label}</span>
-        <AnimatedMoney cents={res.cents} decimals="auto" className={cn('text-3xl font-semibold tracking-tight', res.tone === 'good' && 'text-good', res.tone === 'warn' && 'text-warn')} />
-      </div>
-      {!view.result.currentKnown && <p className="-mt-2 text-xs text-muted-foreground">Vul in stap 1 het huidige maandbedrag in om het verschil te zien.</p>}
-
-      {blocked && (
-        <div className="flex gap-3 rounded-2xl bg-warn-soft p-4 text-sm">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warn" />
-          <div>
-            <p className="font-semibold">Er ontbreekt een prijs</p>
-            <p className="text-muted-foreground">{active.missing.join(', ')}. De app vult geen bedrag voor u in.</p>
-            <Link to="/prijzen" className="mt-1 inline-block font-semibold text-primary underline">
-              Prijs invullen
-            </Link>
+      {active.blocked ? (
+        <div className="space-y-3 rounded-2xl bg-warn-soft p-4">
+          <div className="flex items-center gap-2 font-semibold text-warn">
+            <AlertTriangle className="size-5" /> Prijs of combinatie nog controleren
           </div>
+          <p className="text-sm text-muted-foreground">Zolang dit openstaat toont de app geen prijs of besparing aan de klant. Er wordt niets geschat.</p>
+          {blockers.map((b) => (
+            <div key={b.message} className="rounded-xl bg-card p-3 text-sm">
+              <p>{b.message.replace('Prijs of combinatie nog controleren: ', '')}</p>
+              {b.needsActivation && (
+                <ConfirmAmount label="Eenmalige aansluitkosten" placeholder="Bedrag, 0 mag" note="Wordt bewaard in Prijzen & Aanbiedingen." onConfirm={(c) => updatePricing((p) => ({ ...p, activationCents: c }))} />
+              )}
+              {b.overrideKey && sel && (
+                <ConfirmAmount label="Gecontroleerde prijs per maand" placeholder="Prijs per maand" note="Geldt alleen voor dit advies." onConfirm={(c) => setSelection({ overrides: { ...sel.overrides, [b.overrideKey!]: c } })} />
+              )}
+            </div>
+          ))}
+          <Link to="/prijzen" className="inline-block text-sm font-semibold text-primary underline">
+            Naar Prijzen &amp; Aanbiedingen
+          </Link>
         </div>
+      ) : (
+        <>
+          <div>
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <AnimatedMoney cents={story.nowCents} className="text-5xl font-semibold tracking-tight" />
+              <span className="text-muted-foreground">per maand</span>
+            </div>
+            <ul className="mt-2 space-y-0.5 text-[15px] text-muted-foreground">
+              <li>{story.nowLabel}</li>
+              {story.later.map((l) => (
+                <li key={l.label}>
+                  {l.label} <span className="tnum font-semibold text-foreground">{formatEuro(l.cents)}</span> per maand
+                </li>
+              ))}
+              <li>
+                {offer.contractMonths} maanden contract · {view.result.oneTime.totalCents > 0 ? `eenmalig ${formatEuro(view.result.oneTime.totalCents)}` : 'geen eenmalige kosten'}
+              </li>
+            </ul>
+          </div>
+
+          <div className={cn('flex items-center justify-between gap-3 rounded-2xl px-5 py-4', res.tone === 'good' ? 'bg-good-soft' : res.tone === 'warn' ? 'bg-warn-soft' : 'bg-muted')}>
+            <span className="text-sm font-medium">{res.label}</span>
+            <AnimatedMoney cents={res.cents} decimals="auto" className={cn('text-3xl font-semibold tracking-tight', res.tone === 'good' && 'text-good', res.tone === 'warn' && 'text-warn')} />
+          </div>
+          {!view.result.currentKnown && <p className="-mt-2 text-xs text-muted-foreground">Vul in stap 1 het huidige maandbedrag in om het verschil te zien.</p>}
+        </>
       )}
 
-      <Button variant="primary" size="lg" className="h-16 w-full text-lg" disabled={blocked} onClick={() => navigate('/presentatie')}>
+      {notes.length > 0 && (
+        <ul className="space-y-1.5 text-sm text-muted-foreground">
+          {notes.map((n) => (
+            <li key={n.message} className="flex gap-2">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-accent" /> {n.message}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Button variant="primary" size="lg" className="h-16 w-full text-lg" disabled={active.blocked} onClick={() => navigate('/presentatie')}>
         <MonitorPlay /> Toon aan klant
       </Button>
-      <button type="button" onClick={() => setCalc(true)} className="mx-auto block min-h-[44px] text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-        Bekijk berekening
-      </button>
+      {!active.blocked && (
+        <button type="button" onClick={() => setCalc(true)} className="mx-auto block min-h-[44px] text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+          Bekijk berekening
+        </button>
+      )}
 
-      <div className="space-y-2 border-t pt-4">
-        <ActionBar option={active} />
-        <CommissionPeek option={active} />
-      </div>
+      {!active.blocked && (
+        <div className="space-y-2 border-t pt-4">
+          <ActionBar option={active} />
+          <CommissionPeek option={active} />
+        </div>
+      )}
+      {offer.pricesVerifiedOn && (
+        <p className={cn('text-center text-xs', stale > 0 ? 'font-medium text-warn' : 'text-muted-foreground')}>
+          Prijzen gecontroleerd op {formatDateNl(offer.pricesVerifiedOn)}
+          {stale > 0 && ' · langer dan 30 dagen geleden, controleer ze opnieuw'}
+        </p>
+      )}
 
       <Dialog wide open={calc} onOpenChange={setCalc} title="Berekening" description={`${offer.provider} ${offer.name}`}>
         <Breakdown view={view} lines={active.lines} />
@@ -587,7 +737,7 @@ export default function AdvicePage() {
   return (
     <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-4 p-4 sm:p-6 lg:h-full">
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <Steps step={step} canPresent={!!active && active.missing.length === 0} />
+        <Steps step={step} canPresent={!!active && !active.blocked} />
         <Button variant="ghost" size="sm" onClick={() => setConfirm(true)}>
           <RotateCcw /> Nieuw advies
         </Button>

@@ -19,28 +19,43 @@ Offline werken en installeren werken alleen vanuit de productie-build (`build` +
 ## Zo werkt een advies (3 stappen)
 
 1. **Huidige situatie** – maandbedrag, aanbieder, wel/geen tv, eventueel de einddatum van het contract.
-2. **Nieuw pakket** – tik op een snelheid, tv aan/uit, extra's, acties en eventueel Vodafone. De prijs rechts rekent direct mee.
+2. **Nieuw pakket** – tik op een snelheid en een tv-pakket en kies de actie. Bellen, extra tv, sport/entertainment en Vodafone staan in uitklapbare secties. De prijs rechts rekent direct mee.
 3. **Toon aan klant** – één rustig scherm met pakket, prijs nu, prijs daarna, contractduur en het verschil over 24 maanden. "Bekijk berekening" toont de volledige opbouw.
 
-24 maanden is overal de standaard. Een contract van 12 maanden, een vaste bundel, een tweede optie of handmatige prijzen staan in stap 2 onder **Geavanceerd**.
+24 maanden is overal de standaard. Een contract van 12 maanden, een tweede optie of volledig handmatige prijzen staan in stap 2 onder **Geavanceerd**.
 
-## Prijzen en acties instellen
+## Prijzen zelf bijwerken
 
-Open **Prijzen & Aanbiedingen**. Tik op een regel om hem te bewerken.
+Alles staat in **Prijzen & Aanbiedingen**; er is geen programmeerwerk nodig.
 
-| Tabblad | Wat u instelt |
+| Tabblad | Wat u er doet |
 | --- | --- |
-| Internet | naam, download/upload, normale prijs, actieprijs en -duur, contractduur, eenmalige kosten, geldigheid, interne notitie |
-| Televisie | meerprijs, zenders/functies, inbegrepen ontvangers, prijs extra ontvanger |
-| Extra's | sport, entertainment en overige pakketten |
-| Acties | maandkorting met eigen duur (3, 6, 9, 12 … of hele looptijd), korting op eenmalige kosten, cadeau, voorwaarden, uitsluitgroep |
-| Vodafone | standaard combinatiekorting (leeg = per klant invullen) |
-| Bundels | vaste totaalprijzen; vervangen internet + tv zodat niets dubbel telt |
-| Back-up | prijzen exporteren/terugzetten als JSON |
+| Internet | prijs "alleen internet" per snelheid, aan/uit, eenmalige aansluitkosten. 4 en 8 Gbit staan klaar maar uit, zonder prijs. |
+| Internet + TV | de officiële pakketprijzen als matrix (snelheid × tv-pakket) en de omschrijving van de tv-pakketten |
+| Alles-in-1 | dezelfde matrix mét vast bellen |
+| Extra diensten | ontvangers, wifi-versterkers, sport, film, bundels, streaming; prijs en aan/uit direct in de lijst |
+| Vodafone | referentiekorting per snelheid |
+| Acties | openbare websiteacties (referentie) |
+| Mijn Salesacties | uw eigen, toegestane deuracties met status Concept / Gecontroleerd / Verlopen |
+| Cadeaus | cadeaus die u aan een actie koppelt |
+| Back-up | exporteren, importeren (met controle), basisprijzen terugzetten |
 
-- Een leeg prijsveld betekent "nog invullen": de pakketbouwer blokkeert dan **Toon aan klant** en verzint geen bedrag.
-- Alles met het label **Voorbeeld** heeft verzonnen prijzen. Zet "Prijs gecontroleerd" aan zodra de echte prijs erin staat.
-- Acties met dezelfde groepsnaam sluiten elkaar uit.
+**Een prijs wijzigen:** tik in het bedrag, typ het nieuwe bedrag. Het geldt dan als vandaag gecontroleerd. Via het potlood past u bron, datum en overige eigenschappen aan.
+
+**Een nieuwe deuractie:** Mijn Salesacties → Actie toevoegen → naam, aantal actiemaanden, en in het raster de actieprijs bij elk pakket waarvoor hij geldt → status **Gecontroleerd**. Alleen gecontroleerde, vandaag geldige acties zijn te kiezen.
+
+### Regels die de app afdwingt
+
+- Een pakketprijs komt altijd uit de matrix; er wordt nooit een losse tv-prijs bij internet opgeteld.
+- Een actieprijs geldt alleen voor de pakketten waaraan hij is toegewezen. Bij een ander pakket vraagt de app om een bevestigde prijs voor dat ene advies.
+- Diensten die al in het tv-pakket zitten tonen "Inbegrepen" en kosten niets extra; onderdelen van een gekozen bundel ook niet.
+- Overlapt een bundel met iets dat al inbegrepen is, dan moet u de geldende prijs invullen; de app verzint geen korting.
+- Diensten met alleen een "vanaf"-prijs zijn pas te kiezen als u de exacte prijs invult.
+- Vodafone-voordeel telt pas mee na uw bevestiging. Korting op de Vodafone-rekening wordt apart getoond en nooit van de Ziggo-prijs afgetrokken.
+- Ontbreekt een (gecontroleerde) prijs, dan toont de app "Prijs of combinatie nog controleren" en geen klantvergelijking.
+- Na 30 dagen zonder controle verschijnt een herinnering.
+
+De meegeleverde basisprijzen (controledatum 16 november 2026) staan in `src/engine/pricingSeed.ts`; de rekenregels in `src/engine/pricing.ts`. Een app-update overschrijft uw eigen prijzen niet.
 
 ## Op uw tablet gebruiken
 
@@ -77,7 +92,7 @@ De cloudomgeving is tijdelijk: wat niet is gedownload of gepusht, verdwijnt.
 
 | Map | Inhoud |
 | --- | --- |
-| `src/engine` | Pure rekenmotor (geen React). Bedragen in gehele centen, maand-voor-maand. `catalog.ts` (prijsconfiguratie + pakketbouwer `composeOffer`), `calc.ts` (vergelijking), `insights.ts` (deterministische adviesregels), `ranking.ts` (labels met criterium), `commission.ts`, `customerView.ts` (klantveilig view-model), `energy.ts` (voorbereiding energiemodule). |
+| `src/engine` | Pure rekenmotor (geen React). Bedragen in gehele centen, maand-voor-maand. `pricing.ts` (prijsmatrix, acties en pakketbouwer `composeOffer`), `pricingSeed.ts` (basisprijzen), `catalog.ts` (oude opzet, alleen nog voor migratie), `calc.ts` (vergelijking), `insights.ts` (deterministische adviesregels), `ranking.ts` (labels met criterium), `commission.ts`, `customerView.ts` (klantveilig view-model), `energy.ts` (voorbereiding energiemodule). |
 | `src/store` | Zustand. `data.ts` → localStorage (aanbiedingen, instellingen, opgeslagen adviezen, opvolgingen, uitkomsten). `draft.ts` → sessionStorage (lopend advies, verdwijnt bij sluiten). |
 | `src/pages` | Nieuw advies (stap 1–2), Presentatie (stap 3), Prijzen & Aanbiedingen, Vergelijken, Opvolgingen, Mijn resultaten, Instellingen, Presentatie, Afdrukken. |
 | `src/export` | PDF-voorstel (jsPDF, vector) en deeltekst voor WhatsApp. |

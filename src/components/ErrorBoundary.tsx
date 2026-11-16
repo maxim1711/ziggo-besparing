@@ -20,7 +20,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
             <button
               className="h-12 rounded-xl border px-5 font-semibold"
               onClick={() => {
-                sessionStorage.removeItem('overstapadvies.draft.v2')
+                sessionStorage.removeItem('overstapadvies.draft.v3')
                 window.location.hash = '#/'
                 window.location.reload()
               }}

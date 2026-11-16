@@ -1,6 +1,6 @@
 import { MonthlyTimeline } from '@/components/charts/Charts'
 import { InsightList } from '@/components/InsightList'
-import type { PriceLine } from '@/engine/catalog'
+import type { PriceLine } from '@/engine/pricing'
 import { assumptions, priceSegments, segmentLabel, type CustomerView } from '@/engine/customerView'
 import { formatDateNl } from '@/engine/dates'
 import { formatEuro } from '@/engine/money'
@@ -20,18 +20,29 @@ export function Breakdown({ view, lines }: { view: CustomerView; lines: PriceLin
   const known = r.currentKnown
   const diff = (a: number, b: number) => (a - b >= 0 ? `${formatEuro(a - b)} minder` : `${formatEuro(b - a)} meer`)
   const monthly = lines.filter((l) => l.kind !== 'onetime')
+  const mobile = combo.hasVodafone && combo.eligible ? (combo.mobileInvoiceDiscountCents ?? 0) : 0
   return (
     <div className="space-y-7 text-[15px]">
       <section>
         <H>Uw maandbedrag</H>
         {monthly.map((l) => (
-          <Line key={l.kind + l.label} k={`${l.label}${l.note ? ` (${l.note})` : ''}`} v={`${formatEuro(l.cents)} p/m`} />
+          <Line key={l.kind + l.label} k={`${l.label}${l.note ? ` (${l.note})` : ''}`} v={l.kind === 'inbegrepen' ? 'Inbegrepen' : `${formatEuro(l.cents)} p/m`} />
         ))}
-        {combo.hasVodafone && combo.eligible && combo.monthlyDiscountCents > 0 && <Line k="Vodafone-combinatievoordeel" v={`${formatEuro(-combo.monthlyDiscountCents)} p/m`} />}
+        {combo.hasVodafone && combo.eligible && combo.monthlyDiscountCents > 0 && <Line k="Vodafone-combinatievoordeel op uw Ziggo-rekening" v={`${formatEuro(-combo.monthlyDiscountCents)} p/m`} />}
         {priceSegments(r).map((s) => (
           <Line key={s.from} strong k={`${segmentLabel(s)}${s.from > offer.contractMonths ? ' (schatting)' : ''}`} v={`${formatEuro(s.cents)} p/m`} />
         ))}
       </section>
+
+      {mobile > 0 && (
+        <section className="rounded-2xl border p-4">
+          <H>Apart: voordeel op uw Vodafone-rekening</H>
+          <p>
+            <strong className="tnum">{formatEuro(mobile)}</strong> korting per maand op uw mobiele abonnement ({formatEuro(mobile * r.period)} over {r.period} maanden).
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">Dit staat op de rekening van Vodafone, niet op die van {offer.provider}. Het is daarom niet meegeteld in uw maandbedrag of in het verschil hieronder.</p>
+        </section>
+      )}
 
       <section>
         <H>Eenmalige kosten</H>
@@ -97,7 +108,7 @@ export function Breakdown({ view, lines }: { view: CustomerView; lines: PriceLin
       <section className="rounded-2xl bg-muted p-4 text-sm text-muted-foreground">
         <h3 className="mb-1.5 font-semibold text-foreground">Voorwaarden en aannames</h3>
         <p>
-          Aanbieding geldig tot en met {formatDateNl(offer.validTo)}. Contractduur {offer.contractMonths} maanden.
+          {offer.promoValidTo ? `Actie geldig tot en met ${formatDateNl(offer.promoValidTo)}. ` : ''}Contractduur {offer.contractMonths} maanden.{offer.pricesVerifiedOn ? ` Prijzen gecontroleerd op ${formatDateNl(offer.pricesVerifiedOn)}.` : ''}
         </p>
         {offer.conditions && <p className="mt-1">{offer.conditions}</p>}
         <ul className="mt-1.5 list-disc space-y-1 pl-4">

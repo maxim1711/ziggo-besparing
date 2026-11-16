@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { compare } from '@/engine/calc'
-import { composeOffer, emptySelection, isActive, type PriceLine, type Selection } from '@/engine/catalog'
+import { composeOffer, emptySelection, type ExtraState, type Issue, type PriceLine, type Selection } from '@/engine/pricing'
 import { buildCustomerView, type CustomerView } from '@/engine/customerView'
 import { todayIso } from '@/engine/dates'
 import { emptyCombo, emptyCurrent, newId } from '@/engine/defaults'
@@ -69,11 +69,10 @@ export const useDraft = create<DraftState>()(
         set((s) => {
           if (step !== 2) return { step }
           // Bij de eerste stap naar de pakketbouwer: tv alvast gelijk aan de huidige situatie.
-          const catalog = useData.getState().catalog
-          const firstTv = catalog.tv.find((t) => isActive(t, s.startDate))
+          const firstTv = useData.getState().pricing.tv.find((t) => t.available)
           return {
             step,
-            builds: s.builds.map((b) => (b.snapshot || b.selection.internetId || b.selection.bundleId ? b : { ...b, selection: { ...b.selection, tvId: s.current.hasTv ? (firstTv?.id ?? null) : null } })),
+            builds: s.builds.map((b) => (b.snapshot || b.selection.internetId ? b : { ...b, selection: { ...b.selection, tvId: s.current.hasTv ? (firstTv?.id ?? null) : null } })),
           }
         }),
       setCurrent: (patch) => set((s) => ({ current: { ...s.current, ...patch } })),
@@ -106,7 +105,7 @@ export const useDraft = create<DraftState>()(
           activeIndex: 0,
         }),
     }),
-    { name: 'overstapadvies.draft.v2', storage: createJSONStorage(() => sessionStorage) },
+    { name: 'overstapadvies.draft.v3', storage: createJSONStorage(() => sessionStorage) },
   ),
 )
 
@@ -119,7 +118,10 @@ export interface OptionComparison {
   badges: OptionBadge[]
   letter: string
   lines: PriceLine[]
-  missing: string[]
+  issues: Issue[]
+  /** true = er ontbreekt een (gecontroleerde) prijs: niet aan de klant tonen. */
+  blocked: boolean
+  extraStates: Record<string, ExtraState>
   /** Index in draft.builds. */
   buildIndex: number
 }
@@ -127,20 +129,19 @@ export interface OptionComparison {
 /** Alle berekeningen voor het werkconcept; herberekent bij elke invoerwijziging. */
 export function useComparison() {
   const { current, builds, combo, period, startDate, activeIndex } = useDraft()
-  const catalog = useData((s) => s.catalog)
-  const bundles = useData((s) => s.offers)
+  const pricing = useData((s) => s.pricing)
   return useMemo(() => {
-    const composed = builds.map((b) => (b.snapshot ? { offer: b.snapshot, missing: [] as string[], lines: [] as PriceLine[] } : composeOffer(catalog, bundles, b.selection, startDate)))
+    const composed = builds.map((b) => (b.snapshot ? { offer: b.snapshot, issues: [] as Issue[], lines: [] as PriceLine[], extraStates: {} as Record<string, ExtraState> } : composeOffer(pricing, b.selection, startDate)))
     const base = composed.flatMap((c, buildIndex) => {
       if (!c.offer) return []
       const input = { current, offer: c.offer, combo, period, startDate }
       const result = compare(input)
       const insights = buildInsights(input, result)
-      return [{ offer: c.offer, result, insights, summary: buildSummary(insights), view: buildCustomerView(input), lines: c.lines, missing: c.missing, buildIndex }]
+      return [{ offer: c.offer, result, insights, summary: buildSummary(insights), view: buildCustomerView(input), lines: c.lines, issues: c.issues, blocked: c.issues.some((i) => i.blocking), extraStates: c.extraStates, buildIndex }]
     })
     const badges = rankOptions(base)
     const all: OptionComparison[] = base.map((b, i) => ({ ...b, badges: badges[i], letter: 'ABC'[b.buildIndex] }))
     const active = all.find((o) => o.buildIndex === activeIndex)
     return { all, active, activeIndex: active ? all.indexOf(active) : 0, current, combo, period, startDate }
-  }, [current, builds, combo, period, startDate, activeIndex, catalog, bundles])
+  }, [current, builds, combo, period, startDate, activeIndex, pricing])
 }

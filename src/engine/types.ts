@@ -88,6 +88,10 @@ export interface Offer {
   internalNotes: string
   /** Inbegrepen onderdelen, zoals de klant ze ziet (bv. "Internet 1 Gbit/s", "TV Start"). */
   includes?: string[]
+  /** Einddatum van de gekozen actie; null/undefined = geen actie met einddatum. */
+  promoValidTo?: IsoDate | null
+  /** Oudste controledatum van de gebruikte prijzen. */
+  pricesVerifiedOn?: IsoDate | null
 }
 
 export interface VodafoneCombo {
@@ -96,6 +100,11 @@ export interface VodafoneCombo {
   /** Gecontroleerde maandkorting voor déze klant; geen aanname per abonnement. */
   monthlyDiscountCents: Cents
   extraBenefits: string
+  /**
+   * Bevestigde korting op de Vodafone-rekening (mobiel). Voordeel voor het huishouden,
+   * maar GEEN korting op het Ziggo-abonnement: wordt apart getoond en nergens verrekend.
+   */
+  mobileInvoiceDiscountCents?: Cents
 }
 
 export interface ComparisonInput {
