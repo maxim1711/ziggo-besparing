@@ -32,6 +32,12 @@ export interface FollowUp {
   createdAt: string
   reference: string
   callbackDate: string | null
+  /** "HH:MM"; leeg = hele dag. Ontbreekt bij oudere opvolgingen. */
+  callbackTime?: string | null
+  durationMinutes?: number | null
+  /** Optioneel; alleen invullen als het nodig is voor de afspraak. */
+  address?: string
+  phone?: string
   reason: string
   contractEndDate: string | null
   offerDiscussed: string

@@ -16,6 +16,10 @@ npm run preview    # productie-build lokaal serveren, inclusief service worker
 
 Offline werken en installeren werken alleen vanuit de productie-build (`build` + `preview`, of `dist/` op een statische host).
 
+## Afspraak in Google Agenda
+
+Bij een opvolging vult u datum, tijd, duur, telefoonnummer en adres in. **Opslaan en in agenda zetten** opent Google Agenda met alles al ingevuld (titel, tijd, adres als locatie, en in de omschrijving reden, telefoon, besproken aanbieding, einddatum contract en notities); u tikt daar alleen nog op Opslaan. Er is geen koppeling of account in de app: er gaat pas iets naar Google als u zelf op de knop tikt. In de lijst staat per opvolging ook een knop **Google Agenda**, een **.ics**-bestand voor andere agenda's, en tikbare links voor bellen en navigeren.
+
 ## Twee onderdelen
 
 Het startscherm kiest tussen **Ziggo — Internet & TV** en **Essent — Energie**. Elk onderdeel heeft eigen kleuren, eigen prijzen en een eigen rekenmotor; opvolgingen, resultaten en instellingen zijn gedeeld. Het Ziggo-advies staat nu op `#/ziggo`, het energieadvies op `#/energie`.

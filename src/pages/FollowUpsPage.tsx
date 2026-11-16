@@ -1,4 +1,4 @@
-import { Bookmark, CalendarClock, Download, FolderOpen, Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react'
+import { Bookmark, CalendarClock, CalendarPlus, Download, FolderOpen, MapPin, Pencil, Phone, Plus, ShieldCheck, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FollowUpDialog, STATUS_LABEL } from '@/components/FollowUpDialog'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge, Card, EmptyState } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { Segmented, Select } from '@/components/ui/inputs'
+import { buildCalendarEvent, googleCalendarUrl, icsFile, mapsUrl, telHref } from '@/engine/calendar'
 import { compare } from '@/engine/calc'
 import { formatDateNl, todayIso } from '@/engine/dates'
 import { formatEuro } from '@/engine/money'
@@ -36,8 +37,8 @@ export default function FollowUpsPage() {
   })
 
   const exportCsv = () => {
-    const head = ['Referentie', 'Terugbeldatum', 'Reden', 'Einddatum contract', 'Besproken aanbieding', 'Notities', 'Status', 'Aangemaakt']
-    const lines = followUps.map((f) => [f.reference, f.callbackDate, f.reason, f.contractEndDate, f.offerDiscussed, f.notes, STATUS_LABEL[f.status], f.createdAt.slice(0, 10)].map(csvCell).join(';'))
+    const head = ['Referentie', 'Datum', 'Tijd', 'Telefoon', 'Adres', 'Reden', 'Einddatum contract', 'Besproken aanbieding', 'Notities', 'Status', 'Aangemaakt']
+    const lines = followUps.map((f) => [f.reference, f.callbackDate, f.callbackTime ?? '', f.phone ?? '', f.address ?? '', f.reason, f.contractEndDate, f.offerDiscussed, f.notes, STATUS_LABEL[f.status], f.createdAt.slice(0, 10)].map(csvCell).join(';'))
     downloadFile(`opvolgingen-${today}.csv`, '﻿' + [head.map(csvCell).join(';'), ...lines].join('\r\n'), 'text/csv;charset=utf-8')
   }
 
@@ -45,7 +46,7 @@ export default function FollowUpsPage() {
     <Page>
       <PageHeader
         title="Opvolgingen"
-        subtitle="Terugbelafspraken en opgeslagen adviezen, alleen op dit apparaat."
+        subtitle="Afspraken, terugbelmomenten en opgeslagen adviezen."
         actions={
           tab === 'followups' ? (
             <>
@@ -65,7 +66,7 @@ export default function FollowUpsPage() {
       <div className="mb-4 flex gap-3 rounded-2xl bg-primary-soft px-4 py-3 text-sm">
         <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
         <p>
-          <strong>Privacy:</strong> wie persoonsgegevens op een apparaat bewaart, is daar zelf verantwoordelijk voor (AVG). Noteer zo weinig mogelijk, beveilig uw tablet met een code, en verwijder gegevens zodra u ze niet meer nodig heeft. Er wordt niets naar een server of derde partij gestuurd.
+          <strong>Privacy:</strong> wie persoonsgegevens op een apparaat bewaart, is daar zelf verantwoordelijk voor (AVG). Noteer zo weinig mogelijk, beveilig uw tablet met een code, en verwijder gegevens zodra u ze niet meer nodig heeft. De app stuurt zelf niets door; alleen als u op “Google Agenda” tikt, gaan de gegevens van die afspraak naar uw eigen Google Agenda.
         </p>
       </div>
       <Segmented className="mb-4 max-w-md" value={tab} onChange={setTab} options={[{ value: 'followups', label: `Opvolgingen (${followUps.length})` }, { value: 'saved', label: `Opgeslagen adviezen (${consultations.length + energySaved.length})` }]} />
@@ -91,7 +92,7 @@ export default function FollowUpsPage() {
                         {isToday && <Badge tone="good">Vandaag</Badge>}
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {f.callbackDate ? `Terugbellen op ${formatDateNl(f.callbackDate)}` : 'Geen terugbeldatum'}
+                        {f.callbackDate ? `${formatDateNl(f.callbackDate)}${f.callbackTime ? ` om ${f.callbackTime}` : ''}` : 'Geen datum'}
                         {f.reason && ` · ${f.reason}`}
                       </p>
                       {(f.offerDiscussed || f.contractEndDate) && (
@@ -102,8 +103,33 @@ export default function FollowUpsPage() {
                         </p>
                       )}
                       {f.notes && <p className="mt-1 text-sm">{f.notes}</p>}
+                      {(f.phone || f.address) && (
+                        <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                          {f.phone && (telHref(f.phone) ? <a href={telHref(f.phone)!} className="inline-flex min-h-[32px] items-center gap-1.5 font-medium text-primary"><Phone className="size-4" /> {f.phone}</a> : <span className="inline-flex items-center gap-1.5"><Phone className="size-4" /> {f.phone}</span>)}
+                          {f.address && (
+                            <a href={mapsUrl(f.address)} target="_blank" rel="noreferrer" className="inline-flex min-h-[32px] items-center gap-1.5 font-medium text-primary">
+                              <MapPin className="size-4" /> {f.address}
+                            </a>
+                          )}
+                        </p>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {(() => {
+                        const ev = buildCalendarEvent(f)
+                        return ev ? (
+                          <>
+                            <Button variant="secondary" asChild>
+                              <a href={googleCalendarUrl(ev)} target="_blank" rel="noreferrer">
+                                <CalendarPlus /> Google Agenda
+                              </a>
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => downloadFile(`afspraak-${f.callbackDate}.ics`, icsFile(ev, f.id, new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z'), 'text/calendar;charset=utf-8')}>
+                              .ics
+                            </Button>
+                          </>
+                        ) : null
+                      })()}
                       <Select aria-label="Status" className="w-[140px]" value={f.status} onChange={(e) => upsertFollowUp({ ...f, status: e.target.value as FollowUpStatus })}>
                         {Object.entries(STATUS_LABEL).map(([v, l]) => (
                           <option key={v} value={v}>
