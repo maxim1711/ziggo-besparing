@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { compare } from '@/engine/calc'
-import { composeOffer, emptySelection, type ExtraState, type Issue, type PriceLine, type Selection } from '@/engine/pricing'
+import { composeOffer, emptySelection, vodafoneFor, type ExtraState, type Issue, type PriceLine, type Selection } from '@/engine/pricing'
 import { buildCustomerView, type CustomerView } from '@/engine/customerView'
 import { todayIso } from '@/engine/dates'
 import { emptyCombo, emptyCurrent, newId } from '@/engine/defaults'
@@ -147,7 +147,10 @@ export function useComparison() {
     const composed = builds.map((b) => (b.snapshot ? { offer: b.snapshot, issues: [] as Issue[], lines: [] as PriceLine[], extraStates: {} as Record<string, ExtraState> } : composeOffer(pricing, b.selection, startDate)))
     const base = composed.flatMap((c, buildIndex) => {
       if (!c.offer) return []
-      const input = { current, offer: c.offer, combo, period, startDate }
+      // Vodafone-voordeel volgt de snelheid van déze optie (centrale instelling); vastgezette aanbiedingen houden hun bedrag.
+      const b = builds[buildIndex]
+      const optionCombo = b.snapshot ? combo : vodafoneFor(combo, pricing.internet.find((i) => i.id === b.selection.internetId))
+      const input = { current, offer: c.offer, combo: optionCombo, period, startDate }
       const result = compare(input)
       const insights = buildInsights(input, result)
       return [{ offer: c.offer, result, insights, summary: buildSummary(insights), view: buildCustomerView(input), lines: c.lines, issues: c.issues, blocked: c.issues.some((i) => i.blocking), extraStates: c.extraStates, buildIndex }]

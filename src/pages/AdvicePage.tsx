@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { Field, Input, MoneyInput, NumberInput, Segmented, Select, Switch } from '@/components/ui/inputs'
-import { findPrice, formatSpeed, isVerifiedPrice, promotionBlockedReason, staleCount, togglePromotion, type ExtraCategory, type ExtraService } from '@/engine/pricing'
+import { findPrice, formatSpeed, isVerifiedPrice, promotionBlockedReason, promotionsForContract, staleCount, togglePromotion, vodafoneOn, type ExtraCategory, type ExtraService } from '@/engine/pricing'
 import { formatDateNl } from '@/engine/dates'
 import { priceStory } from '@/engine/customerView'
 import { differenceView } from '@/engine/switching'
@@ -88,10 +88,17 @@ function Steps({ step, canPresent }: { step: 1 | 2; canPresent: boolean }) {
       {items.map((it, i) => (
         <li key={it.n} className="flex items-center gap-1 sm:gap-2">
           {i > 0 && <span className="h-px w-3 bg-border sm:w-6" />}
+          {it.n === 3 && step === 2 ? (
+            // In stap 2 is "Toon aan klant" de hoofdactie: altijd bovenin en vast in beeld.
+            <button type="button" disabled={!it.enabled} onClick={it.go} className="flex h-12 items-center gap-2 rounded-full bg-primary px-5 text-[15px] font-semibold text-white shadow-lift transition-all active:scale-[.98] disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none">
+              <MonitorPlay className="size-5" /> {it.label}
+            </button>
+          ) : (
           <button type="button" disabled={!it.enabled} aria-current={it.n === step ? 'step' : undefined} onClick={it.go} className={cn('flex h-11 items-center gap-2 rounded-full px-2 text-sm font-semibold transition-colors disabled:opacity-40 sm:px-3', it.n === step ? 'bg-primary-soft text-primary' : 'text-muted-foreground hover:text-foreground')}>
             <span className={cn('grid size-7 place-items-center rounded-full text-xs', it.n === step ? 'bg-primary text-white' : it.n < step ? 'bg-good-soft text-good' : 'bg-muted')}>{it.n < step ? <Check className="size-4" strokeWidth={3} /> : it.n}</span>
-            <span className={cn(it.n !== step && 'hidden md:inline')}>{it.label}</span>
+            <span className={cn(it.n !== step && 'hidden lg:inline')}>{it.label}</span>
           </button>
+          )}
         </li>
       ))}
     </ol>
@@ -281,6 +288,28 @@ function Stepper({ value, onChange, max, label }: { value: number; onChange: (n:
   )
 }
 
+/** Compacte, inklapbare rij voor een aanvullende optie. Ingeklapt toont hij wat er actief is (en wat het kost). */
+function OptionRow({ label, summary, warn, children }: { label: string; summary: string | null; warn?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div>
+      <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="flex min-h-[56px] w-full items-center gap-3 px-4 text-left hover:bg-muted/40">
+        <span className="flex-1 text-[15px] font-semibold">{label}</span>
+        {summary ? (
+          <span className={cn('tnum flex items-center gap-1.5 text-sm font-semibold', warn ? 'text-warn' : 'text-primary')}>
+            <span aria-hidden className={cn('size-2 rounded-full', warn ? 'bg-warn' : 'bg-primary')} />
+            {warn ? `${summary} · controleren` : summary}
+          </span>
+        ) : (
+          <span className="text-sm text-muted-foreground">Geen</span>
+        )}
+        <ChevronDown className={cn('size-5 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && <div className="animate-fade-up space-y-4 border-t bg-muted/20 px-4 pb-4 pt-3">{children}</div>}
+    </div>
+  )
+}
+
 const EXTRA_GROUPS: { category: ExtraCategory; title: string }[] = [
   { category: 'sport', title: 'Sport' },
   { category: 'entertainment', title: 'Film en zenders' },
@@ -314,17 +343,29 @@ function Builder() {
   const visibleExtra = (e: ExtraService) => (e.available && e.monthlyCents !== null && (!e.requiresTv || !!tv)) || (sel.extras[e.id] ?? 0) > 0
   const equipment = pricing.extras.filter((e) => e.category === 'apparatuur' && visibleExtra(e))
   const special = pricing.extras.filter((e) => e.moreOptions && visibleExtra(e))
-  const promos = pricing.promotions.filter((p) => !promotionBlockedReason(p, startDate, sel.contractMonths, !!tv) || sel.promotionIds.includes(p.id)).sort((a, b) => (a.channel === b.channel ? 0 : a.channel === 'eigen' ? -1 : 1))
-  const hiddenPromos = pricing.promotions.length - promos.length
+  // Alleen eigen salesacties die bij deze contractduur gelden; openbare websiteacties staan bij Prijzen & Aanbiedingen.
+  const promos = pricing.promotions.filter((p) => (p.channel === 'eigen' && !promotionBlockedReason(p, startDate, sel.contractMonths, !!tv)) || sel.promotionIds.includes(p.id))
   const chosenExtras = Object.entries(sel.extras).filter(([id, q]) => q > 0 && pricing.extras.find((e) => e.id === id)?.category !== 'apparatuur').length
   const chosenEquipment = equipment.reduce((a, e) => a + (sel.extras[e.id] ?? 0), 0)
+  // Samenvattingen voor de ingeklapte rijen: bedragen uit de prijsmotor, niet opnieuw berekend.
+  const offerExtras = active?.offer.extras ?? []
+  const isEquipment = (id: string) => pricing.extras.find((e) => e.id === id)?.category === 'apparatuur'
+  const equipmentCents = offerExtras.filter((x) => isEquipment(x.id)).reduce((a, x) => a + x.monthlyCents, 0)
+  const entertainmentCents = offerExtras.filter((x) => !isEquipment(x.id)).reduce((a, x) => a + x.monthlyCents, 0)
+  const entertainmentCheck = Object.entries(states).some(([id, st]) => st === 'controleren' && !isEquipment(id) && (sel.extras[id] ?? 0) > 0)
+  const phoneDelta = sel.phone && base !== null && withPhone !== null ? withPhone - base : null
+  const vodafone = combo.hasVodafone && combo.eligible
+  const comboAmount = vodafone ? (net?.vodafoneDiscountCents ?? 0) : 0
+  const setContract = (m: 12 | 24) => {
+    setSelection({ contractMonths: m, promotionIds: promotionsForContract(pricing, sel.promotionIds, m, startDate, !!tv) })
+    // Vergelijken over de contractduur; onder Geavanceerd blijft dit aan te passen.
+    setPeriod(m)
+  }
 
   const pickInternet = (id: string) => {
     setSelection({ internetId: id })
-    // Vodafone-referentiebedrag volgt de gekozen snelheid, tot de adviseur het zelf aanpast.
-    const prev = net?.vodafoneDiscountCents ?? null
-    const next = pricing.internet.find((i) => i.id === id)?.vodafoneDiscountCents ?? null
-    if (combo.hasVodafone && next !== null && (combo.monthlyDiscountCents === 0 || combo.monthlyDiscountCents === prev)) setCombo({ monthlyDiscountCents: next })
+    // Vodafone-voordeel volgt de gekozen snelheid (centrale instelling).
+    if (vodafone) setCombo(vodafoneOn(true, pricing.internet.find((i) => i.id === id)))
   }
 
   const extraChip = (e: ExtraService) => {
@@ -352,12 +393,12 @@ function Builder() {
   }
 
   const advanced = (
-    <More label="Geavanceerd" defaultOpen={sel.contractMonths === 12 || builds.length > 1}>
+    <More label={`Geavanceerd${sel.contractMonths === 12 ? ' (1 jaar contract)' : ''}`} defaultOpen={sel.contractMonths === 12 || builds.length > 1}>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Contractduur" hint="Standaard 24 maanden">
-          <Segmented value={sel.contractMonths} onChange={(m) => setSelection({ contractMonths: m })} options={[{ value: 24, label: '24 maanden' }, { value: 12, label: '12 maanden' }]} />
+        <Field label="Contractduur" hint="Standaard 2 jaar">
+          <Segmented aria-label="Contractduur" value={sel.contractMonths} onChange={setContract} options={[{ value: 24, label: '2 jaar' }, { value: 12, label: '1 jaar' }]} />
         </Field>
-        <Field label="Vergelijken over" hint="Standaard 24 maanden">
+        <Field label="Vergelijken over" hint="Volgt de contractduur">
           <Segmented value={period} onChange={setPeriod} options={[{ value: 24, label: '24 maanden' }, { value: 12, label: '12 maanden' }]} />
         </Field>
       </div>
@@ -498,16 +539,16 @@ function Builder() {
       </section>
 
       <section>
-        <SectionTitle hint="de klant kiest er één">Welkomstactie</SectionTitle>
+        <SectionTitle>Welkomstactie</SectionTitle>
         {promos.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Geen gecontroleerde, geldige acties voor dit pakket.{' '}
+            Geen geldige actie voor {sel.contractMonths} maanden.{' '}
             <Link to="/prijzen" className="font-semibold text-primary underline">
               Acties beheren
             </Link>
           </p>
         ) : (
-          <div role="radiogroup" aria-label="Welkomstactie" className="grid gap-2">
+          <div role="radiogroup" aria-label="Welkomstactie" className="divide-y overflow-hidden rounded-2xl border-2 border-border">
             {promos.map((p) => {
               const gift = p.giftId ? pricing.gifts.find((g) => g.id === p.giftId) : undefined
               const blocked = promotionBlockedReason(p, startDate, sel.contractMonths, !!tv)
@@ -519,26 +560,29 @@ function Builder() {
                   role="radio"
                   aria-checked={on}
                   onClick={() => setSelection({ promotionIds: togglePromotion(pricing, sel.promotionIds, p.id) })}
-                  className={cn('relative flex min-h-[72px] items-center gap-4 rounded-2xl border-2 bg-card px-3 py-2.5 text-left transition-all duration-150 active:scale-[.98]', on ? 'border-primary bg-primary-soft/60 shadow-card' : 'border-border hover:border-primary/40')}
+                  className={cn('flex min-h-[56px] w-full items-center gap-3 px-4 py-2 text-left transition-colors', on ? 'bg-primary-soft/70' : 'bg-card hover:bg-muted/50')}
                 >
-                  {gift ? <GiftImage src={gift.imageDataUrl} className="size-14 rounded-xl" /> : <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-good-soft text-lg font-bold text-good">€</span>}
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-semibold leading-snug">{p.name}</span>
-                    <span className="block text-xs text-muted-foreground">{blocked ? <span className="font-semibold text-warn">{blocked}</span> : gift ? 'Cadeau · normale maandprijs' : p.channel === 'eigen' ? 'Maandkorting' : 'Openbare actie ziggo.nl'}</span>
-                  </span>
-                  <span className={cn('grid size-6 shrink-0 place-items-center rounded-full border-2', on ? 'border-primary bg-primary text-white' : 'border-border')}>{on && <Check className="size-3.5" strokeWidth={3} />}</span>
+                  <span className={cn('grid size-6 shrink-0 place-items-center rounded-full border-2 transition-colors', on ? 'border-primary bg-primary text-white' : 'border-border')}>{on && <Check className="size-3.5" strokeWidth={3} />}</span>
+                  <span className={cn('min-w-0 flex-1 text-[15px] leading-snug', on ? 'font-semibold' : 'font-medium')}>{p.name}</span>
+                  {blocked ? <span className="text-xs font-semibold text-warn">{blocked}</span> : gift ? <GiftImage src={gift.imageDataUrl} className="size-9 rounded-lg" /> : null}
                 </button>
               )
             })}
           </div>
         )}
-        <p className="mt-2 text-xs text-muted-foreground">
-          Welkomstacties zijn niet te combineren: een andere kiezen vervangt de vorige.{hiddenPromos > 0 && ` ${hiddenPromos} actie(s) verborgen (concept, verlopen of niet voor dit pakket).`}
-        </p>
       </section>
 
-      <More label={`Vast bellen${sel.phone ? ' (aan)' : ''}`}>
-        <div className="rounded-2xl border-2 border-border px-4 py-1">
+      <div className="flex min-h-[56px] flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-2xl border-2 border-border px-4 py-2">
+        <div className="min-w-0">
+          <div className="text-[15px] font-semibold">Vodafone op dit adres</div>
+          {vodafone && <div className={cn('tnum text-xs', comboAmount ? 'text-good' : 'text-warn')}>{comboAmount ? `Combinatievoordeel − ${formatEuro(comboAmount)} per maand verrekend` : net ? `Geen combinatievoordeel ingesteld voor ${formatSpeed(net.downloadMbps)}` : 'Kies eerst een internetsnelheid'}</div>}
+        </div>
+        <Segmented size="sm" className="w-[150px]" aria-label="Vodafone op dit adres" value={vodafone ? 'ja' : 'nee'} onChange={(v) => setCombo(vodafoneOn(v === 'ja', net))} options={[{ value: 'nee', label: 'Nee' }, { value: 'ja', label: 'Ja' }]} />
+      </div>
+
+      <div className="divide-y overflow-hidden rounded-2xl border-2 border-border">
+        <OptionRow label="Vaste telefonie" summary={sel.phone ? (phoneDelta !== null ? `Aan · + ${formatEuro(phoneDelta)} p/m` : 'Aan') : null}>
+        <div>
           <Switch
             checked={sel.phone}
             onCheckedChange={(phone) => setSelection({ phone })}
@@ -546,14 +590,13 @@ function Builder() {
             description={!net ? 'Kies eerst een internetpakket.' : base !== null && withPhone !== null ? `+ ${formatEuro(withPhone - base)} per maand${tv ? ' (Alles-in-1)' : ''} buiten acties. Belkosten zelf zijn niet meegerekend.` : sel.phone ? 'Voor deze combinatie is geen gecontroleerde prijs ingesteld.' : tv ? 'Prijs voor deze combinatie nog niet ingesteld.' : 'Prijs voor internet met vaste telefonie nog niet ingesteld.'}
           />
         </div>
-      </More>
-
-      <More label={`Extra tv en wifi${chosenEquipment ? ` (${chosenEquipment})` : ''}`}>
-        <div className="divide-y rounded-2xl border-2 border-border">
+        </OptionRow>
+        <OptionRow label="Extra tv en wifi" summary={chosenEquipment ? `${chosenEquipment} extra · + ${formatEuro(equipmentCents)} p/m` : null}>
+        <div className="divide-y">
           {equipment.map((e) => {
             const included = e.id === 'x-next-mini' ? (tv?.includedReceivers ?? 0) : e.id === 'x-wifi-extender' ? (net?.includedExtenders ?? 0) : 0
             return (
-              <div key={e.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+              <div key={e.id} className="flex items-center justify-between gap-3 py-2">
                 <div>
                   <div className="text-[15px] font-semibold">{e.name}</div>
                   <div className="tnum text-xs text-muted-foreground">
@@ -564,7 +607,7 @@ function Builder() {
               </div>
             )
           })}
-          {equipment.length === 0 && <p className="px-4 py-3 text-sm text-muted-foreground">Geen apparatuur beschikbaar voor dit pakket.</p>}
+          {equipment.length === 0 && <p className="py-3 text-sm text-muted-foreground">Geen apparatuur beschikbaar voor dit pakket.</p>}
         </div>
         {equipment.some((e) => (sel.extras[e.id] ?? 0) > 0) && (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -586,9 +629,8 @@ function Builder() {
               ))}
           </div>
         )}
-      </More>
-
-      <More label={`Sport en entertainment${chosenExtras ? ` (${chosenExtras})` : ''}`}>
+        </OptionRow>
+        <OptionRow label="Sport en entertainment" summary={chosenExtras ? `${chosenExtras} gekozen${entertainmentCents ? ` · + ${formatEuro(entertainmentCents)} p/m` : ''}` : null} warn={entertainmentCheck}>
         {EXTRA_GROUPS.map((g) => {
           const items = pricing.extras.filter((e) => e.category === g.category && !e.moreOptions && (visibleExtra(e) || tv?.includes.includes(e.id)))
           if (items.length === 0) return null
@@ -608,34 +650,8 @@ function Builder() {
             {moreExtras && <div className="mt-1 flex flex-wrap gap-2">{special.map(extraChip)}</div>}
           </div>
         )}
-      </More>
-
-      <More label={`Vodafone-voordeel${combo.hasVodafone ? (combo.eligible ? ' (bevestigd)' : ' (nog controleren)') : ''}`}>
-        <div className="rounded-2xl border-2 border-border px-4 py-1">
-          <Switch checked={combo.hasVodafone} onCheckedChange={(on) => setCombo({ hasVodafone: on, eligible: on ? combo.eligible : false, monthlyDiscountCents: on && combo.monthlyDiscountCents === 0 ? (net?.vodafoneDiscountCents ?? 0) : combo.monthlyDiscountCents })} label="Heeft u Vodafone?" />
-          {combo.hasVodafone && (
-            <div className="animate-fade-up space-y-3 border-t pb-3 pt-2">
-              <div className="rounded-xl bg-accent-soft px-3 py-2 text-sm">
-                <strong>Combinatievoordeel controleren.</strong> <span className="text-muted-foreground">Niet elk abonnement komt in aanmerking en bestaande klanten kunnen oude voordelen hebben. Tot u bevestigt, telt er niets mee.</span>
-              </div>
-              <Switch checked={combo.eligible} onCheckedChange={(eligible) => setCombo({ eligible })} label="Ik heb gecontroleerd dat de klant in aanmerking komt" />
-              {combo.eligible && (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Korting op de Ziggo-rekening" hint={net?.vodafoneDiscountCents != null ? `Referentie bij ${formatSpeed(net.downloadMbps)}: ${formatEuro(net.vodafoneDiscountCents)} per maand` : 'Per maand'} error={combo.monthlyDiscountCents === 0 ? 'Vul het bevestigde bedrag in; zonder bedrag telt er niets mee.' : null}>
-                    <MoneyInput value={combo.monthlyDiscountCents} onChange={(c) => setCombo({ monthlyDiscountCents: c ?? 0 })} emptyAsZero placeholder="Invullen" />
-                  </Field>
-                  <Field label="Korting op de Vodafone-rekening" hint="Alleen bij bevestigd bedrag. Wordt apart getoond en niet van de Ziggo-prijs afgetrokken.">
-                    <MoneyInput value={combo.mobileInvoiceDiscountCents ?? 0} onChange={(c) => setCombo({ mobileInvoiceDiscountCents: c ?? 0 })} emptyAsZero placeholder="—" />
-                  </Field>
-                  <Field label="Extra voordeel (optioneel)" className="sm:col-span-2">
-                    <Input value={combo.extraBenefits} onChange={(e) => setCombo({ extraBenefits: e.target.value })} placeholder="Bijv. dubbele data" />
-                  </Field>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </More>
+        </OptionRow>
+      </div>
 
       {advanced}
       {editDialog}
@@ -671,7 +687,6 @@ function ConfirmAmount({ label, placeholder, note, onConfirm }: { label: string;
 }
 
 function Summary() {
-  const navigate = useNavigate()
   const { active } = useComparison()
   const pricing = useData((s) => s.pricing)
   const updatePricing = useData((s) => s.updatePricing)
@@ -768,9 +783,6 @@ function Summary() {
         </ul>
       )}
 
-      <Button variant="primary" size="lg" className="h-16 w-full text-lg" disabled={active.blocked} onClick={() => navigate('/presentatie')}>
-        <MonitorPlay /> Toon aan klant
-      </Button>
       {!active.blocked && (
         <button type="button" onClick={() => setCalc(true)} className="mx-auto block min-h-[44px] text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
           Bekijk berekening
@@ -778,8 +790,15 @@ function Summary() {
       )}
 
       {!active.blocked && (
-        <div className="space-y-3 rounded-2xl bg-muted/60 p-3">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Voor het scherm “Overstappen zonder gedoe”</div>
+        <details className="group rounded-2xl bg-muted/60 px-3 [&_summary::-webkit-details-marker]:hidden" open={switching.overstap !== 'ja' || switching.install !== 'ja' ? true : undefined}>
+          <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-2 text-sm">
+            <span className="font-medium">Overstapservice en monteur</span>
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              {switching.overstap === 'ja' && switching.install === 'ja' ? 'Beide ja' : 'Uitzondering'}
+              <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+            </span>
+          </summary>
+          <div className="space-y-3 pb-3">
           <div>
             <div className="mb-1 text-[13px] font-medium">Overstapservice van toepassing?</div>
             <Segmented size="sm" aria-label="Overstapservice van toepassing?" value={switching.overstap} onChange={(overstap) => setSwitching({ overstap })} options={[{ value: 'ja', label: 'Ja' }, { value: 'nee', label: 'Nee' }, { value: 'controleren', label: 'Nog controleren' }]} />
@@ -789,7 +808,8 @@ function Summary() {
             <Segmented size="sm" aria-label="Monteursafspraak wordt geregeld?" value={switching.install} onChange={(install) => setSwitching({ install })} options={[{ value: 'ja', label: 'Ja' }, { value: 'nee', label: 'Nee' }, { value: 'bespreken', label: 'Bespreken' }]} />
           </div>
           <p className="text-xs text-muted-foreground">{switching.overstap === 'ja' && switching.install === 'ja' ? 'Standaard Ja. Zet alleen bij een uitzondering iets anders.' : 'Let op: voor wat niet op “Ja” staat toont het klantscherm geen belofte.'}</p>
-        </div>
+          </div>
+        </details>
       )}
 
       {!active.blocked && (
@@ -820,11 +840,18 @@ export default function AdvicePage() {
   const [confirm, setConfirm] = useState(false)
   return (
     <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-4 p-4 sm:p-6 lg:h-full">
-      <header className="flex flex-wrap items-center justify-between gap-2">
+      <header className="sticky top-0 z-20 -mx-4 -mt-4 flex items-center justify-between gap-2 border-b bg-background px-4 py-2 sm:-mx-6 sm:-mt-6 sm:px-6 sm:py-3 lg:static lg:m-0 lg:border-0 lg:bg-transparent lg:p-0">
         <Steps step={step} canPresent={!!active && !active.blocked} />
-        <Button variant="ghost" size="sm" onClick={() => setConfirm(true)}>
-          <RotateCcw /> Nieuw advies
-        </Button>
+        <div className="flex items-center gap-1">
+          {step === 2 && active && !active.blocked && (
+            <span className="tnum hidden whitespace-nowrap px-2 text-sm font-semibold sm:inline lg:hidden">
+              {formatEuro(priceStory(active.view).nowCents)} <span className="font-normal text-muted-foreground">p/m</span>
+            </span>
+          )}
+          <Button variant="ghost" size="sm" aria-label="Nieuw advies" onClick={() => setConfirm(true)}>
+            <RotateCcw /> <span className="hidden lg:inline">Nieuw advies</span>
+          </Button>
+        </div>
       </header>
 
       {step === 1 ? (

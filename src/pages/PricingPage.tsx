@@ -564,10 +564,11 @@ function PromoPanel({ channel, q }: { channel: PromotionChannel; q: string }) {
     const parts = [
       n > 0 && `vaste actieprijs voor ${n} pakket${n === 1 ? '' : 'ten'} (${cats.join(', ')})`,
       p.monthlyDiscountCents > 0 && `${formatEuro(p.monthlyDiscountCents)} korting p/m`,
-      (n > 0 || p.monthlyDiscountCents > 0) && (p.durationMonths ? `${p.durationMonths} maanden` : 'hele looptijd'),
+      (p.percentDiscount ?? 0) > 0 && `${p.percentDiscount}% korting op het abonnement`,
+      (n > 0 || p.monthlyDiscountCents > 0 || (p.percentDiscount ?? 0) > 0) && (p.durationMonths ? `${p.durationMonths} maanden` : 'hele looptijd'),
       p.oneTimeDiscountCents > 0 && `${formatEuro(p.oneTimeDiscountCents)} korting eenmalig`,
       p.giftId && `cadeau: ${pricing.gifts.find((g) => g.id === p.giftId)?.name ?? 'onbekend'}`,
-      `${p.contractMonths} mnd contract`,
+      p.contractExact || p.contractMonths === 24 ? `${p.contractMonths} mnd contract` : '12 of 24 mnd contract',
     ]
     return parts.filter(Boolean).join(' · ')
   }
@@ -638,8 +639,12 @@ function PromoPanel({ channel, q }: { channel: PromotionChannel; q: string }) {
               <Field label="Aantal actiemaanden" hint="Bijv. 3, 6, 9 of 12. Leeg = hele contractduur">
                 <NumberInput value={e.durationMonths} onChange={(n) => l.patch({ durationMonths: n && n > 0 ? n : null })} nullable placeholder="Hele looptijd" suffix="maanden" max={24} />
               </Field>
-              <Field label="Minimale contractduur">
-                <Segmented value={e.contractMonths} onChange={(contractMonths) => l.patch({ contractMonths })} options={[{ value: 24, label: '24 maanden' }, { value: 12, label: '12 maanden' }]} />
+              <Field label="Geldt bij contract van">
+                <Segmented
+                  value={e.contractExact || e.contractMonths === 24 ? String(e.contractMonths) : 'beide'}
+                  onChange={(v) => l.patch(v === 'beide' ? { contractMonths: 12, contractExact: false } : { contractMonths: Number(v) as 12 | 24, contractExact: true })}
+                  options={[{ value: '24', label: '24 maanden' }, { value: '12', label: '12 maanden' }, { value: 'beide', label: 'Beide' }]}
+                />
               </Field>
               <Field label="Geldig vanaf" hint="Leeg = geen begindatum">
                 <Input type="date" value={e.validFrom ?? ''} onChange={(ev) => l.patch({ validFrom: ev.target.value || null })} />
@@ -649,7 +654,10 @@ function PromoPanel({ channel, q }: { channel: PromotionChannel; q: string }) {
               </Field>
             </div>
 
-            <PromoCategoryPrices promo={e} pricing={pricing} cat={cat} setCat={setCat} patch={l.patch} />
+            <Field label="Korting in procenten op het abonnement" hint="Op internet, tv en vast bellen samen, tijdens de actiemaanden. Nooit op extra diensten, apparatuur of eenmalige kosten. Vervangt een vaste actieprijs.">
+              <NumberInput value={e.percentDiscount ?? null} onChange={(n) => l.patch({ percentDiscount: n && n > 0 ? Math.min(n, 100) : undefined })} nullable placeholder="Geen" suffix="%" max={100} />
+            </Field>
+            {!(e.percentDiscount ?? 0) && <PromoCategoryPrices promo={e} pricing={pricing} cat={cat} setCat={setCat} patch={l.patch} />}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Korting per maand" hint="Bovenop de pakket- of actieprijs; 0 = geen">

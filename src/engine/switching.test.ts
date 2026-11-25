@@ -92,11 +92,11 @@ describe('savings, equal and unknown', () => {
   })
   it('works on real packages with promotion and post-promotion price', () => {
     const cat = { ...seedPricing(), activationCents: 0 }
-    const o = composeOffer(cat, { ...emptySelection(), internetId: 'net-1000', tvId: 'tv-max', promotionIds: ['welkom-35'] }, TODAY).offer!
+    const o = composeOffer(cat, { ...emptySelection(), internetId: 'net-1000', tvId: 'tv-max', promotionIds: ['welkom-3495-24m'] }, TODAY).offer!
     const d = diff(o, 6000)
-    expect(d.totalCents).toBe(12 * 3500 + 12 * 9040 - 144000) // € 64,80
-    expect(d.averageMonthlyCents).toBe(270)
-    expect(d.headline).toBe(`Gemiddeld €${NBSP}2,70 meer per maand`)
+    expect(d.totalCents).toBe(12 * 3495 + 12 * 9040 - 144000) // € 64,20
+    expect(d.averageMonthlyCents).toBe(268)
+    expect(d.headline).toBe(`Gemiddeld €${NBSP}2,68 meer per maand`)
   })
 })
 
@@ -183,7 +183,7 @@ describe('navigation between the two slides', () => {
     expect(nextSlide(0, 'vorige')).toBe(0)
   })
   it('slide 1 offers "Volgende"; only the last slide has the final action', () => {
-    expect(slideControls(0)).toEqual({ back: null, primary: 'Volgende', primaryAction: 'volgende' })
-    expect(slideControls(1)).toEqual({ back: 'Vorige', primary: 'Verder met dit abonnement', primaryAction: 'afronden' })
+    expect(slideControls(0)).toEqual({ back: 'Terug', backAction: 'pakket', primary: 'Volgende', primaryAction: 'volgende' })
+    expect(slideControls(1)).toEqual({ back: 'Terug', backAction: 'vorige', primary: 'Verder met dit abonnement', primaryAction: 'afronden' })
   })
 })

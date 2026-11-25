@@ -3,8 +3,8 @@ import { persist } from 'zustand/middleware'
 import { newId } from '@/engine/defaults'
 import type { CommissionSettings } from '@/engine/commission'
 import type { Catalog as CatalogV2 } from '@/engine/catalog'
-import { addMissingSeedItems, migrateCatalogV2, PRICING_SCHEMA_VERSION, type PricingCatalog } from '@/engine/pricing'
-import { seedPricing } from '@/engine/pricingSeed'
+import { addMissingSeedItems, applyPromotionUpdate, migrateCatalogV2, PRICING_SCHEMA_VERSION, type PricingCatalog } from '@/engine/pricing'
+import { REPLACED_PROMOTION_IDS, seedPricing } from '@/engine/pricingSeed'
 import { defaultSwitchTexts, type SwitchTexts } from '@/engine/switching'
 import type { ComparisonPeriod, CurrentSubscription, Offer, ProductKind, VodafoneCombo } from '@/engine/types'
 
@@ -147,7 +147,7 @@ export const useData = create<DataState>()(
     {
       // De sleutel blijft gelijk tussen versies, zodat instellingen en prijzen een app-update overleven.
       name: 'overstapadvies.data.v1',
-      version: 4,
+      version: 5,
       migrate: (persisted, version) => {
         const state = persisted as Partial<DataState> & { catalog?: CatalogV2 }
         if (version < 3) {
@@ -164,6 +164,9 @@ export const useData = create<DataState>()(
         }
         // v4: de drie welkomstacties en hun cadeaus toegevoegd; bestaande regels blijven ongemoeid.
         if (version === 3 && state.pricing) state.pricing = addMissingSeedItems(state.pricing, seedPricing())
+        // v5: nieuwe welkomstacties (24 mnd: 12 × € 34,95; 12 mnd: 9 × € 34,95 of 6 × 50%). De oude
+        // "12 maanden € 35" gaat op Verlopen, zodat die niet stilletjes de nieuwe prijzen overschrijft.
+        if (version < 5 && state.pricing) state.pricing = applyPromotionUpdate(state.pricing, seedPricing(), REPLACED_PROMOTION_IDS, 'Vervangen door de welkomstacties van 25-11-2026.')
         return state as DataState
       },
     },

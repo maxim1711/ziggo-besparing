@@ -69,6 +69,19 @@ Is het nieuwe abonnement duurder, dan toont het aanbodscherm "Gemiddeld € x me
 - **Uitgebreid vergelijken** (stap 1, optioneel): huidige snelheid, wifi-versterkers, vaste telefonie, opnemen en zenders. Alleen wat is ingevuld wordt vergeleken; "Weet ik niet" telt nooit als nee of 0.
 - **Wifi-opstelling**: op het scherm "Overstappen zonder gedoe" opent **Bekijk uw wifi-opstelling** een voorbeeldwoning met modem en versterkers. Alleen ter illustratie, geen dekkingsgarantie.
 
+## Welkomstacties (per 25-11-2026)
+
+| Contract | Keuze | Wat de klant betaalt |
+| --- | --- | --- |
+| 2 jaar | 12 maanden € 34,95 p/m | 12 × € 34,95 voor het abonnement (internet, tv en vast bellen samen), daarna de normale prijs |
+| 2 jaar | bol cadeaukaart of Samsung tv + soundbar | normale prijs, met cadeau |
+| 1 jaar | 9 maanden € 34,95 p/m | 9 × € 34,95, daarna 3 × de normale prijs |
+| 1 jaar | 6 maanden 50% korting | 6 × de halve abonnementsprijs, daarna 6 × de normale prijs |
+
+Extra diensten (ontvangers, wifi-versterkers, sport, films, streaming) en eenmalige kosten krijgen nooit actiekorting. De contractduur kiest u onder Geavanceerd (standaard 2 jaar); de app toont dan alleen de acties die daarbij horen en vergelijkt over dezelfde periode. Prijs, looptijd, percentage en contractduur zijn per actie aan te passen onder Mijn Salesacties. De vorige actie "12 maanden € 35" staat na de update op Verlopen.
+
+**Vodafone op dit adres**: zet u op Ja, dan rekent de app het combinatievoordeel dat bij de gekozen snelheid hoort (Prijzen & Aanbiedingen → Internet → Vodafone-korting), bovenop de actie.
+
 ## Actie voor Internet + Vaste telefonie
 
 In een actie (Mijn Salesacties → bewerken) staan vier categorieën: Alleen internet, Internet + TV, **Internet + Vaste telefonie** en Internet + TV + Vaste telefonie. Per categorie vult u de actieprijs per snelheid in en eventueel een eigen aantal actiemaanden. De app kiest automatisch de prijs die bij het gekozen pakket hoort; bij Internet + Vaste telefonie is het bedrag inclusief bellen (geen toeslag erbovenop). Vul ook de normale prijs in op het tabblad Alles-in-1, kolom "Internet + vaste telefonie": die geldt na de actie.

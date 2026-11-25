@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, FileDown, Handshake, Info, Send, Wifi, Wrench } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Calculator, Check, FileDown, Handshake, Info, Send, Wifi, Wrench } from 'lucide-react'
 import { lazy, Suspense, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatedMoney } from '@/components/AnimatedMoney'
@@ -242,9 +242,6 @@ export default function PresentationPage() {
       }}
     >
       <header className="safe-t flex items-center justify-between gap-3 px-4 pt-3 sm:px-6">
-        <button onClick={() => navigate('/ziggo')} className="flex h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-muted-foreground/80 hover:bg-muted hover:text-foreground">
-          <ArrowLeft className="size-4" /> <span className="hidden sm:inline">Pakket aanpassen</span>
-        </button>
         <nav aria-label="Schermen" className="flex gap-1">
           {tabs.map((t, i) => (
             <button key={t} onClick={() => setSlide(i)} aria-current={i === slide ? 'step' : undefined} className={cn('flex h-11 items-center gap-2 rounded-full px-3 text-sm font-semibold transition-colors', i === slide ? 'bg-primary-soft text-primary' : 'text-muted-foreground hover:text-foreground')}>
@@ -253,7 +250,13 @@ export default function PresentationPage() {
             </button>
           ))}
         </nav>
-        <div className="flex min-w-[44px] justify-end">{slide === 0 && <OptionTabs options={all} activeIndex={activeIndex} />}</div>
+        <div className="flex items-center justify-end gap-2">
+          {slide === 0 && <OptionTabs options={all} activeIndex={activeIndex} />}
+          <button onClick={() => setCalc(true)} className="flex h-11 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground">
+            <Calculator className="size-4" /> <span className="hidden sm:inline">Bekijk berekening</span>
+            <span className="sr-only sm:hidden">Bekijk berekening</span>
+          </button>
+        </div>
       </header>
 
       <main key={`${slide}-${active.buildIndex}`} className="mx-auto flex w-full max-w-[1180px] flex-1 animate-fade-up items-center px-6 py-6 sm:px-10 [@media(max-height:800px)]:py-2">
@@ -262,15 +265,9 @@ export default function PresentationPage() {
 
       <footer className="safe-b mx-auto w-full max-w-[1180px] px-6 pb-5 sm:px-10">
         <div className="flex items-center justify-between gap-3">
-          {controls.back ? (
-            <Button size="lg" variant="ghost" className="h-16" onClick={() => setSlide((s) => nextSlide(s, 'vorige'))}>
-              <ChevronLeft /> {controls.back}
-            </Button>
-          ) : (
-            <button onClick={() => setCalc(true)} className="min-h-[48px] px-2 text-base font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-              Bekijk berekening
-            </button>
-          )}
+          <Button size="lg" variant="ghost" className="h-16 px-4 text-base" onClick={() => (controls.backAction === 'pakket' ? navigate('/ziggo') : setSlide((s) => nextSlide(s, 'vorige')))}>
+            <ArrowLeft /> {controls.back}
+          </Button>
           <Button variant="primary" size="lg" className="h-16 px-8 text-lg" onClick={() => (controls.primaryAction === 'volgende' ? setSlide((s) => nextSlide(s, 'volgende')) : setNext(true))}>
             {controls.primary} <ArrowRight />
           </Button>

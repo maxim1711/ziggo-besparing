@@ -143,6 +143,7 @@ export function nextSlide(current: number, action: SlideAction): number {
 }
 
 /** Welke knoppen horen bij welk scherm. De slotactie staat alleen op het laatste scherm. */
-export function slideControls(current: number): { back: string | null; primary: string; primaryAction: 'volgende' | 'afronden' } {
-  return current >= SLIDE_COUNT - 1 ? { back: 'Vorige', primary: 'Verder met dit abonnement', primaryAction: 'afronden' } : { back: null, primary: 'Volgende', primaryAction: 'volgende' }
+/** Linksonder staat altijd "Terug": op scherm 1 naar de pakketbouwer, daarna naar het vorige scherm. */
+export function slideControls(current: number): { back: string; backAction: 'pakket' | 'vorige'; primary: string; primaryAction: 'volgende' | 'afronden' } {
+  return current >= SLIDE_COUNT - 1 ? { back: 'Terug', backAction: 'vorige', primary: 'Verder met dit abonnement', primaryAction: 'afronden' } : { back: 'Terug', backAction: 'pakket', primary: 'Volgende', primaryAction: 'volgende' }
 }

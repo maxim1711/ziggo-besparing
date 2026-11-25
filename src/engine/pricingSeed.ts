@@ -138,7 +138,8 @@ const EXTRAS: ExtraService[] = [
 
 /** Welkomstacties sluiten elkaar uit: de klant kiest er precies één. */
 export const WELCOME_GROUP = 'Welkomstactie'
-const campaign = (): Source => ({ url: null, verifiedOn: SEED_DATE })
+/** Welkomstacties zoals door de adviseur aangeleverd op 25-11-2026. */
+const campaign = (): Source => ({ url: null, verifiedOn: '2026-11-25' })
 
 const GIFTS: GiftDefinition[] = [
   { id: 'gift-bol-450', available: true, type: 'cadeaukaart', name: 'bol cadeaukaart van € 450', imageDataUrl: 'gifts/cadeaukaart.svg', retailValueCents: 45000, description: 'Cadeaukaart om te besteden bij bol.', conditions: 'Volgens de actievoorwaarden.' },
@@ -161,17 +162,25 @@ const welcome = (over: Partial<Promotion> & Pick<Promotion, 'id' | 'name'>): Pro
   conditions: 'Bij een contract van 24 maanden. Niet te combineren met een andere welkomstactie.',
   benefits: '',
   source: campaign(),
-  internalNotes: 'Uit de salescampagne van de adviseur (16-11-2026). Einddatum nog invullen.',
+  internalNotes: 'Uit de salescampagne van de adviseur (bijgewerkt 25-11-2026). Einddatum nog invullen.',
   ...over,
 })
 
-/** Optie A geldt voor alle vier standaardsnelheden, met of zonder tv (zonder vast bellen). */
-const all16 = (cents: number): Record<string, number> => Object.fromEntries(Object.keys(MATRIX).flatMap((n) => [null, ...TV.map((t) => t.id)].map((t) => [packageKey(n, t, false), cents])))
+/** Alle 32 kernpakketten: vier snelheden × (alleen internet of een tv-pakket) × (met of zonder vast bellen). */
+const allCore = (cents: number): Record<string, number> =>
+  Object.fromEntries(Object.keys(MATRIX).flatMap((n) => [null, ...TV.map((t) => t.id)].flatMap((t) => [false, true].map((phone) => [packageKey(n, t, phone), cents]))))
 
+/** Id's van de welkomstacties (per 25-11-2026). De vorige actie "12 maanden € 35" is vervangen. */
+export const WELCOME_IDS = { tweeJaar: 'welkom-3495-24m', eenJaarVast: 'welkom-3495-12m', eenJaarProcent: 'welkom-50pct-12m' } as const
+export const REPLACED_PROMOTION_IDS = ['welkom-35']
+
+const CORE = 'Geldt voor het abonnement: internet, tv en vast bellen samen. Extra diensten tegen de normale prijs.'
 const WELCOME: Promotion[] = [
-  welcome({ id: 'welkom-35', name: '12 maanden € 35 per maand', durationMonths: 12, fixedPrices: all16(3500), conditions: 'Bij een contract van 24 maanden. Na 12 maanden geldt de normale prijs. Geen welkomstcadeau.' }),
-  welcome({ id: 'welkom-bol', name: 'bol cadeaukaart van € 450', giftId: 'gift-bol-450', conditions: 'Bij een contract van 24 maanden. U betaalt de normale maandprijs. Niet te combineren met de maandkorting of een ander cadeau.' }),
-  welcome({ id: 'welkom-samsung', name: 'Samsung 55-inch 4K-tv + soundbar', giftId: 'gift-samsung-tv-soundbar', conditions: 'Bij een contract van 24 maanden. U betaalt de normale maandprijs. Niet te combineren met de maandkorting of een ander cadeau.' }),
+  welcome({ id: WELCOME_IDS.tweeJaar, name: '12 maanden € 34,95 p/m', contractExact: true, durationMonths: 12, fixedPrices: allCore(3495), conditions: `Bij een contract van 24 maanden. De eerste 12 maanden € 34,95 per maand, daarna de normale prijs. ${CORE}` }),
+  welcome({ id: WELCOME_IDS.eenJaarVast, name: '9 maanden € 34,95 p/m', contractMonths: 12, contractExact: true, durationMonths: 9, fixedPrices: allCore(3495), conditions: `Bij een contract van 12 maanden. De eerste 9 maanden € 34,95 per maand, daarna de normale prijs. ${CORE}` }),
+  welcome({ id: WELCOME_IDS.eenJaarProcent, name: '6 maanden 50% korting', contractMonths: 12, contractExact: true, durationMonths: 6, percentDiscount: 50, conditions: 'Bij een contract van 12 maanden. De eerste 6 maanden 50% korting op het abonnement (internet, tv en vast bellen), daarna de normale prijs. Geen korting op extra diensten, apparatuur of eenmalige kosten.' }),
+  welcome({ id: 'welkom-bol', name: 'bol cadeaukaart van € 450', contractExact: true, giftId: 'gift-bol-450', conditions: 'Bij een contract van 24 maanden. U betaalt de normale maandprijs. Niet te combineren met de maandkorting of een ander cadeau.' }),
+  welcome({ id: 'welkom-samsung', name: 'Samsung 55-inch 4K-tv + soundbar', contractExact: true, giftId: 'gift-samsung-tv-soundbar', conditions: 'Bij een contract van 24 maanden. U betaalt de normale maandprijs. Niet te combineren met de maandkorting of een ander cadeau.' }),
 ]
 
 export function seedPricing(): PricingCatalog {

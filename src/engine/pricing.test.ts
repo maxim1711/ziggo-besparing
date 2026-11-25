@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { compare } from './calc'
 import { buildCustomerView } from './customerView'
 import { emptyCombo, emptyCurrent } from './defaults'
-import { addMissingSeedItems, CHECK_MESSAGE, composeOffer, emptySelection, findPrice, keysInCategory, migrateCatalogV2, packageCategory, packageKey, promotionMonths, parsePricingExport, promotionBlockedReason, staleCount, togglePromotion, type PricingCatalog, type Promotion, type Selection } from './pricing'
-import { seedPricing } from './pricingSeed'
+import { addMissingSeedItems, CHECK_MESSAGE, composeOffer, emptySelection, findPrice, applyPromotionUpdate, keysInCategory, migrateCatalogV2, percentPrice, promotionsForContract, vodafoneFor, vodafoneOn, packageCategory, packageKey, promotionMonths, parsePricingExport, promotionBlockedReason, staleCount, togglePromotion, type PricingCatalog, type Promotion, type Selection } from './pricing'
+import { REPLACED_PROMOTION_IDS, seedPricing, WELCOME_IDS } from './pricingSeed'
 import { sampleCatalog } from './catalog'
 import type { Offer, VodafoneCombo } from './types'
 
@@ -17,6 +17,12 @@ const run = (offer: Offer, monthly = 6500, combo: VodafoneCombo = emptyCombo()) 
 const promo = (over: Partial<Promotion>): Promotion => ({ id: 'p', name: 'Testactie', channel: 'eigen', status: 'gecontroleerd', validFrom: null, validTo: null, contractMonths: 24, durationMonths: 12, fixedPrices: {}, monthlyDiscountCents: 0, oneTimeDiscountCents: 0, giftId: null, exclusiveGroup: null, requiresTv: false, conditions: '', benefits: '', source: { url: null, verifiedOn: TODAY }, internalNotes: '', ...over })
 
 const NET = ['net-200', 'net-500', 'net-1000', 'net-2000']
+const [W24, W12, W50]: string[] = [WELCOME_IDS.tweeJaar, WELCOME_IDS.eenJaarVast, WELCOME_IDS.eenJaarProcent]
+/** Officiële prijzen: [alleen internet, TV Start, TV Complete, TV Max] en Alles-in-1 [Start, Complete, Max]. */
+const REGULAR: Record<string, number[]> = { 'net-200': [4195, 5840, 6440, 7740], 'net-500': [4895, 6540, 7140, 8440], 'net-1000': [5495, 7140, 7740, 9040], 'net-2000': [5995, 7640, 8240, 9540] }
+const PHONE: Record<string, number[]> = { 'net-200': [6335, 6935, 8235], 'net-500': [7035, 7635, 8935], 'net-1000': [7635, 8235, 9535], 'net-2000': [8135, 8735, 10035] }
+/** Fictieve normale prijs voor internet + bellen (in de seed bewust leeg). */
+const NET_PHONE = 4695
 const TVS = ['tv-start', 'tv-complete', 'tv-max']
 
 describe('internet only — 4 verified base prices', () => {
@@ -376,8 +382,8 @@ describe('source metadata and maintenance', () => {
     old.promotions.push({ ...old.promotions[0], id: 'mine', name: 'Mijn actie', isExample: false, gift: { type: 'soundbar', name: 'Soundbar', imageDataUrl: null, retailValueCents: null, description: '', conditions: '' } })
     old.extras.push({ ...old.extras[0], id: 'mijn-extra', name: 'Mijn extra', isExample: false })
     const m = migrateCatalogV2(old, seedPricing())
-    expect(m.promotions.map((p) => p.id)).toEqual(['welkom-35', 'welkom-bol', 'welkom-samsung', 'promo-3495-12m', 'mine'])
-    expect(m.promotions[4]).toMatchObject({ status: 'concept', channel: 'eigen', giftId: 'gift-mine' })
+    expect(m.promotions.map((p) => p.id)).toEqual([W24, W12, W50, 'welkom-bol', 'welkom-samsung', 'promo-3495-12m', 'mine'])
+    expect(m.promotions[6]).toMatchObject({ status: 'concept', channel: 'eigen', giftId: 'gift-mine' })
     expect(m.gifts.map((g) => g.id)).toEqual(['gift-bol-450', 'gift-samsung-tv-soundbar', 'gift-mine'])
     expect(m.extras.some((e) => e.id === 'mijn-extra')).toBe(true)
     expect(m.extras.some((e) => e.id.startsWith('vb-'))).toBe(false)
@@ -385,37 +391,41 @@ describe('source metadata and maintenance', () => {
   })
 })
 
-describe('welcome offers — exactly one of three', () => {
-  const WELCOME = ['welkom-35', 'welkom-bol', 'welkom-samsung']
-  const REGULAR: Record<string, number[]> = { 'net-200': [4195, 5840, 6440, 7740], 'net-500': [4895, 6540, 7140, 8440], 'net-1000': [5495, 7140, 7740, 9040], 'net-2000': [5995, 7640, 8240, 9540] }
+describe('welcome offers — 24 months: one of three', () => {
+  const WELCOME = [W24, 'welkom-bol', 'welkom-samsung']
   const combos = NET.flatMap((n) => [null, ...TVS].map((t, j) => ({ n, t, regular: REGULAR[n][j] })))
 
-  it('all three are preserved in the editable campaign configuration', () => {
-    const promos = seedPricing().promotions.filter((p) => WELCOME.includes(p.id))
-    expect(promos.map((p) => p.id)).toEqual(WELCOME)
-    for (const p of promos) expect(p).toMatchObject({ channel: 'eigen', status: 'gecontroleerd', contractMonths: 24, exclusiveGroup: 'Welkomstactie' })
-    expect(Object.keys(promos[0].fixedPrices)).toHaveLength(16)
-    expect(promos[0].giftId).toBeNull()
+  it('all welcome offers are in the editable campaign configuration', () => {
+    const promos = seedPricing().promotions.filter((p) => p.exclusiveGroup === 'Welkomstactie' && p.channel === 'eigen')
+    expect(promos.map((p) => p.id)).toEqual([W24, W12, W50, 'welkom-bol', 'welkom-samsung'])
+    for (const p of promos) expect(p).toMatchObject({ status: 'gecontroleerd', contractExact: true })
+    const [a, b, c] = promos
+    expect(a).toMatchObject({ contractMonths: 24, durationMonths: 12 })
+    expect(b).toMatchObject({ contractMonths: 12, durationMonths: 9 })
+    expect(c).toMatchObject({ contractMonths: 12, durationMonths: 6, percentDiscount: 50, fixedPrices: {} })
+    // 4 snelheden × (internet, 3 tv-pakketten) × (met/zonder bellen)
+    expect(Object.keys(a.fixedPrices)).toHaveLength(32)
+    expect(new Set(Object.values(a.fixedPrices))).toEqual(new Set([3495]))
+    expect(a.fixedPrices).toEqual(b.fixedPrices)
+    expect(seedPricing().promotions.some((p) => p.id === 'welkom-35')).toBe(false)
   })
 
-  it.each(combos)('option A: $n + $t → 12 × € 35 then 12 × regular', ({ n, t, regular }) => {
-    const { offer, issues } = build(sel({ internetId: n, tvId: t, promotionIds: ['welkom-35'] }))
+  it.each(combos)('12 × € 34,95: $n + $t, then 12 × regular', ({ n, t, regular }) => {
+    const { offer, issues } = build(sel({ internetId: n, tvId: t, promotionIds: [W24] }))
     expect(issues.filter((i) => i.blocking)).toEqual([])
     const r = run(offer!)
-    expect(r.months.slice(0, 12).every((m) => m.newCents === 3500)).toBe(true)
+    expect(r.months.slice(0, 12).every((m) => m.newCents === 3495)).toBe(true)
     expect(r.months.slice(12).every((m) => m.newCents === regular)).toBe(true)
-    expect(r.new24Cents).toBe(12 * 3500 + 12 * regular)
+    expect(r.new24Cents).toBe(12 * 3495 + 12 * regular)
     expect(offer!.gift).toBeNull()
-    expect(offer!.contractMonths).toBe(24)
-    expect(offer!.promoName).toBe('12 maanden € 35 per maand')
+    expect(offer!.promoName).toBe('12 maanden € 34,95 p/m')
   })
 
-  it.each(combos)('options B and C: $n + $t pays the regular price for 24 months', ({ n, t, regular }) => {
+  it.each(combos)('gift offers: $n + $t pays the regular price for 24 months', ({ n, t, regular }) => {
     for (const [id, gift] of [['welkom-bol', 'bol cadeaukaart van € 450'], ['welkom-samsung', 'Samsung 55-inch 4K-tv + soundbar']]) {
       const { offer, issues } = build(sel({ internetId: n, tvId: t, promotionIds: [id] }))
       expect(issues.filter((i) => i.blocking)).toEqual([])
       expect(offer!.promoMonths).toBe(0)
-      expect(offer!.discounts).toEqual([])
       expect(run(offer!).new24Cents).toBe(24 * regular)
       expect(offer!.gift?.name).toBe(gift)
     }
@@ -428,18 +438,21 @@ describe('welcome offers — exactly one of three', () => {
       ids = togglePromotion(c, ids, id)
       expect(ids).toEqual([id])
     }
-    expect(togglePromotion(c, ['welkom-samsung'], 'promo-3495-12m')).toEqual(['promo-3495-12m'])
-    expect(togglePromotion(c, ['welkom-35'], 'welkom-35')).toEqual([])
+    expect(togglePromotion(c, [W12], W50)).toEqual([W50])
+    expect(togglePromotion(c, [W24], W24)).toEqual([])
   })
 
-  it('cannot be stacked even if all three end up selected', () => {
-    for (const order of [WELCOME, [...WELCOME].reverse(), ['welkom-bol', 'welkom-35', 'welkom-samsung']]) {
+  it('cannot be stacked even if several end up selected', () => {
+    for (const order of [WELCOME, [...WELCOME].reverse(), ['welkom-bol', W24, 'welkom-samsung']]) {
       const o = build(sel({ tvId: 'tv-start', promotionIds: order })).offer!
       const single = build(sel({ tvId: 'tv-start', promotionIds: [order[0]] })).offer!
       expect(run(o).new24Cents).toBe(run(single).new24Cents)
       expect(o.gift).toEqual(single.gift)
       expect(o.promoName).toBe(single.promoName)
     }
+    // Vaste prijs en procentkorting stapelen nooit.
+    const both = build(sel({ contractMonths: 12, tvId: 'tv-start', promotionIds: [W12, W50] })).offer!
+    expect([both.promoMonthlyCents, both.promoMonths]).toEqual([3495, 9])
   })
 
   it('two gift promotions never combine, even in different groups', () => {
@@ -448,7 +461,6 @@ describe('welcome offers — exactly one of three', () => {
     expect(togglePromotion(c, ['welkom-bol'], 'welkom-samsung')).toEqual(['welkom-samsung'])
     const o = build(sel({ promotionIds: ['welkom-bol', 'welkom-samsung'] }), c).offer!
     expect(o.gift?.name).toBe('bol cadeaukaart van € 450')
-    expect(o.promoName).toBe('bol cadeaukaart van € 450')
   })
 
   it('gift value (€ 450 / € 898) is never added to the cash savings', () => {
@@ -456,13 +468,17 @@ describe('welcome offers — exactly one of three', () => {
     for (const id of ['welkom-bol', 'welkom-samsung']) {
       const r = run(build(sel({ internetId: 'net-500', tvId: 'tv-complete', promotionIds: [id] })).offer!, 8000)
       expect(r.totalSavingsCents).toBe(plain.totalSavingsCents)
-      expect(r.totalSavingsCents).toBe(24 * 8000 - 24 * 7140)
     }
     expect(seedPricing().gifts.map((g) => g.retailValueCents)).toEqual([45000, 89800])
   })
 
-  it('€ 35 with fixed telephone is not assumed', () => {
-    expect(blocking(sel({ tvId: 'tv-start', phone: true, promotionIds: ['welkom-35'] }))[0].overrideKey).toBe('promo:welkom-35')
+  it('€ 34,95 also covers Alles-in-1 without charging tv or phone on top', () => {
+    for (const n of NET)
+      TVS.forEach((t, j) => {
+        const o = build(sel({ internetId: n, tvId: t, phone: true, promotionIds: [W24] })).offer!
+        expect([o.promoMonthlyCents, o.regularMonthlyCents, o.promoMonths]).toEqual([3495, PHONE[n][j], 12])
+        expect(o.extras).toEqual([])
+      })
   })
 
   it('gift images are bundled, base-relative paths (no root-relative or external URLs)', () => {
@@ -471,89 +487,181 @@ describe('welcome offers — exactly one of three', () => {
 
   it('updating an existing configuration adds the offers without touching existing rows', () => {
     const mine = cat()
-    mine.promotions = [{ ...mine.promotions.find((p) => p.id === 'welkom-35')!, name: 'Door mij aangepast', fixedPrices: {} }]
+    mine.promotions = [{ ...mine.promotions.find((p) => p.id === W24)!, name: 'Door mij aangepast', fixedPrices: {} }]
     mine.gifts = []
     const merged = addMissingSeedItems(mine, seedPricing())
-    expect(merged.promotions.find((p) => p.id === 'welkom-35')!.name).toBe('Door mij aangepast')
-    expect(merged.promotions.map((p) => p.id).sort()).toEqual(['promo-3495-12m', 'welkom-35', 'welkom-bol', 'welkom-samsung'])
+    expect(merged.promotions.find((p) => p.id === W24)!.name).toBe('Door mij aangepast')
     expect(merged.gifts).toHaveLength(2)
   })
 })
 
+describe('welcome offers — 12-month contract', () => {
+  const combos = NET.flatMap((n) => [null, ...TVS].flatMap((t, j) => [false, true].map((phone) => ({ n, t, phone, regular: phone ? (t ? PHONE[n][j - 1] : NET_PHONE) : REGULAR[n][j] }))))
+  /** Seed + gecontroleerde normale prijs voor internet + bellen (in de echte seed nog leeg). */
+  const full = () => {
+    const c = cat()
+    c.prices = c.prices.map((p) => (p.tvId === null && p.phone && NET.includes(p.internetId) ? { ...p, cents: NET_PHONE, source: { url: null, verifiedOn: TODAY } } : p))
+    return c
+  }
+  const run12 = (offer: Offer, monthly = 6500) => compare({ current: { ...emptyCurrent(), monthlyCents: monthly }, offer, combo: emptyCombo(), period: 12, startDate: TODAY })
+
+  it.each(combos)('9 × € 34,95: $n + $t (bellen: $phone), then 3 × regular', ({ n, t, phone, regular }) => {
+    const { offer, issues } = build(sel({ internetId: n, tvId: t, phone, contractMonths: 12, promotionIds: [W12] }), full())
+    expect(issues.filter((i) => i.blocking)).toEqual([])
+    const r = run12(offer!)
+    expect(r.months.slice(0, 9).every((m) => m.newCents === 3495)).toBe(true)
+    expect(r.months.slice(9, 12).every((m) => m.newCents === regular)).toBe(true)
+    expect(r.newPeriodCents).toBe(9 * 3495 + 3 * regular)
+  })
+
+  it.each(combos)('6 × 50%: $n + $t (bellen: $phone), then 6 × regular', ({ n, t, phone, regular }) => {
+    const { offer, issues } = build(sel({ internetId: n, tvId: t, phone, contractMonths: 12, promotionIds: [W50] }), full())
+    expect(issues.filter((i) => i.blocking)).toEqual([])
+    const half = Math.round(regular / 2)
+    const r = run12(offer!)
+    expect(r.months.slice(0, 6).every((m) => m.newCents === half)).toBe(true)
+    expect(r.months.slice(6, 12).every((m) => m.newCents === regular)).toBe(true)
+    expect(offer!.promoName).toBe('6 maanden 50% korting')
+  })
+
+  it('50% rounds to whole cents (half a cent rounds up)', () => {
+    expect(percentPrice(8000, 50)).toBe(4000)
+    expect(percentPrice(5995, 50)).toBe(2998)
+    expect(percentPrice(7740, 50)).toBe(3870)
+  })
+
+  it('contract duration determines which promotions are available', () => {
+    const c = cat()
+    const usable = (m: 12 | 24) => c.promotions.filter((p) => p.channel === 'eigen' && !promotionBlockedReason(p, TODAY, m, true)).map((p) => p.id)
+    expect(usable(24)).toEqual([W24, 'welkom-bol', 'welkom-samsung'])
+    expect(usable(12)).toEqual([W12, W50])
+    // Een 24-maandenactie telt niet mee bij 1 jaar en andersom.
+    expect(build(sel({ contractMonths: 12, promotionIds: [W24] })).offer!.promoMonths).toBe(0)
+    expect(build(sel({ contractMonths: 24, promotionIds: [W12] })).offer!.promoMonths).toBe(0)
+    expect(build(sel({ contractMonths: 24, promotionIds: [W50] })).offer!.promoMonths).toBe(0)
+  })
+
+  it('older promotions without contractExact keep the minimum-duration rule', () => {
+    const p = promo({ contractMonths: 12 })
+    expect(promotionBlockedReason(p, TODAY, 24, false)).toBeNull()
+    expect(promotionBlockedReason({ ...p, contractExact: true }, TODAY, 24, false)).toMatch(/12 maanden/)
+  })
+})
+
+describe('calculation examples A, B and C (core € 80 + € 10 non-eligible extras)', () => {
+  /** Kernabonnement van € 80 met een niet-kortingsgerechtigde extra van € 10. */
+  const example = () => {
+    const c = cat()
+    c.prices = c.prices.map((p) => (p.internetId === 'net-200' && p.tvId === 'tv-start' && !p.phone ? { ...p, cents: 8000 } : p))
+    c.extras = c.extras.map((e) => (e.id === 'x-zenders-plus' ? { ...e, monthlyCents: 1000 } : e))
+    return c
+  }
+  const months = (s: Selection) => {
+    const o = build(s, example())
+    expect(o.issues.filter((i) => i.blocking)).toEqual([])
+    return compare({ current: { ...emptyCurrent(), monthlyCents: 9000 }, offer: o.offer!, combo: emptyCombo(), period: s.contractMonths, startDate: TODAY }).months.slice(0, s.contractMonths).map((m) => m.newCents)
+  }
+  const base = (over: Partial<Selection>) => sel({ tvId: 'tv-start', extras: { 'x-zenders-plus': 1 }, ...over })
+
+  it('A — 24 months: 12 × € 44,95 then 12 × € 90', () => {
+    expect(months(base({ contractMonths: 24, promotionIds: [W24] }))).toEqual([...Array(12).fill(4495), ...Array(12).fill(9000)])
+  })
+  it('B — 12 months fixed price: 9 × € 44,95 then 3 × € 90', () => {
+    expect(months(base({ contractMonths: 12, promotionIds: [W12] }))).toEqual([...Array(9).fill(4495), ...Array(3).fill(9000)])
+  })
+  it('C — 12 months 50%: 6 × € 50 then 6 × € 90', () => {
+    expect(months(base({ contractMonths: 12, promotionIds: [W50] }))).toEqual([...Array(6).fill(5000), ...Array(6).fill(9000)])
+  })
+  it('50% never touches extra receivers, extra wifi hardware or one-time fees', () => {
+    const c = example()
+    c.activationCents = 2500
+    const o = build(base({ contractMonths: 12, promotionIds: [W50], extras: { 'x-zenders-plus': 1, 'x-next-mini': 1, 'x-wifi-extender': 2 } }), c).offer!
+    expect(o.promoMonthlyCents).toBe(4000)
+    expect(o.extras.reduce((a, e) => a + e.monthlyCents, 0)).toBe(1000 + 600 + 500)
+    expect(o.activationCents).toBe(2500)
+  })
+  it('services included in TV Max stay part of the package price', () => {
+    const o = build(sel({ tvId: 'tv-max', contractMonths: 12, promotionIds: [W50], extras: { 'x-zst': 1 } })).offer!
+    expect(o.promoMonthlyCents).toBe(percentPrice(7740, 50))
+    expect(o.extras).toEqual([])
+  })
+})
+
+describe('promotion update for saved settings', () => {
+  it('retires the old € 35 offer, adds the new ones first and keeps everything else', () => {
+    const old = cat()
+    const legacy = { ...old.promotions.find((p) => p.id === W24)!, id: 'welkom-35', name: '12 maanden € 35 per maand', internalNotes: 'eigen notitie' }
+    old.promotions = [legacy, ...old.promotions.filter((p) => ![W24, W12, W50].includes(p.id))]
+    old.activationCents = 1995
+    const mineExtra = { ...old.extras[0], id: 'mijn-extra' }
+    old.extras.push(mineExtra)
+    const up = applyPromotionUpdate(old, seedPricing(), REPLACED_PROMOTION_IDS, 'Vervangen.')
+    expect(up.promotions.slice(0, 3).map((p) => p.id)).toEqual([W24, W12, W50])
+    const retired = up.promotions.find((p) => p.id === 'welkom-35')!
+    expect(retired.status).toBe('verlopen')
+    expect(retired.internalNotes).toBe('Vervangen. eigen notitie')
+    expect(up.activationCents).toBe(1995)
+    expect(up.extras).toContainEqual(mineExtra)
+    expect(up.prices).toEqual(old.prices)
+    // Opnieuw uitvoeren verandert niets.
+    expect(applyPromotionUpdate(up, seedPricing(), REPLACED_PROMOTION_IDS, 'Vervangen.')).toEqual(up)
+  })
+  it('a retired offer no longer counts in a calculation', () => {
+    const c = applyPromotionUpdate(cat(), seedPricing(), ['welkom-bol'], '')
+    expect(build(sel({ promotionIds: ['welkom-bol'] }), c).offer!.gift).toBeNull()
+  })
+})
+
 describe('internet + vaste telefonie — eigen actiecategorie', () => {
-  const NET_PHONE = 4695 // fictief normaal tarief voor de test; in de seed bewust leeg
-  /** Catalogus met een gecontroleerde normale prijs voor Internet 200 + bellen en de welkomstactie uitgebreid. */
+  /** Catalogus met een gecontroleerde normale prijs voor Internet 200 + bellen. */
   const withPhonePromo = (over: Partial<Promotion> = {}): PricingCatalog => {
     const c = cat()
     c.prices = c.prices.map((p) => (p.internetId === 'net-200' && p.tvId === null && p.phone ? { ...p, cents: NET_PHONE, source: { url: null, verifiedOn: TODAY } } : p))
-    c.promotions = c.promotions.map((p) => (p.id === 'welkom-35' ? { ...p, fixedPrices: { ...p.fixedPrices, [packageKey('net-200', null, true)]: 3500 }, ...over } : p))
+    c.promotions = c.promotions.map((p) => (p.id === W24 ? { ...p, ...over } : p))
     return c
   }
-  const phoneSel = (over: Partial<Selection> = {}) => sel({ phone: true, promotionIds: ['welkom-35'], ...over })
+  const phoneSel = (over: Partial<Selection> = {}) => sel({ phone: true, promotionIds: [W24], ...over })
 
   it('applies the configured package price for internet + fixed telephony automatically', () => {
     const { offer, issues, lines } = build(phoneSel(), withPhonePromo())
     expect(issues.filter((i) => i.blocking)).toEqual([])
-    expect(offer!.promoMonthlyCents).toBe(3500)
-    expect(offer!.promoMonths).toBe(12)
-    expect(offer!.regularMonthlyCents).toBe(NET_PHONE)
-    expect(offer!.kind).toBe('internet')
+    expect([offer!.promoMonthlyCents, offer!.promoMonths, offer!.regularMonthlyCents]).toEqual([3495, 12, NET_PHONE])
     expect(offer!.includes).toContain('Vast bellen')
-    // Geen losse bellentoeslag: alleen de pakketregel en de actie.
     expect(lines.map((l) => l.kind)).toEqual(['pakket', 'discount'])
-    expect(run(offer!).new24Cents).toBe(12 * 3500 + 12 * NET_PHONE)
+    expect(run(offer!).new24Cents).toBe(12 * 3495 + 12 * NET_PHONE)
   })
 
-  it('does not treat the phone price as internet-only promo plus a surcharge', () => {
-    const { offer } = build(phoneSel(), withPhonePromo())
-    expect(offer!.promoMonthlyCents).not.toBe(3500 + (NET_PHONE - 4195))
-    expect(offer!.extras).toEqual([])
-  })
-
-  it('leaves internet-only and internet + tv promotions unchanged', () => {
+  it('a separate internet + phone price never leaks into other categories', () => {
     const c = withPhonePromo()
-    const netOnly = build(sel({ promotionIds: ['welkom-35'] }), c).offer!
-    expect([netOnly.promoMonthlyCents, netOnly.regularMonthlyCents, netOnly.promoMonths]).toEqual([3500, 4195, 12])
-    const tv = build(sel({ tvId: 'tv-start', promotionIds: ['welkom-35'] }), c).offer!
-    expect([tv.promoMonthlyCents, tv.regularMonthlyCents, tv.promoMonths]).toEqual([3500, 5840, 12])
-  })
-
-  it('never overrides internet + tv + fixed telephony (Alles-in-1)', () => {
-    const c = withPhonePromo()
-    const r = build(sel({ tvId: 'tv-start', phone: true, promotionIds: ['welkom-35'] }), c)
-    expect(r.offer!.regularMonthlyCents).toBe(6335)
-    expect(r.offer!.promoMonthlyCents).toBe(6335)
-    expect(r.issues.some((i) => i.blocking && i.overrideKey === 'promo:welkom-35')).toBe(true)
+    c.promotions = c.promotions.map((p) => (p.id === W24 ? { ...p, fixedPrices: { ...p.fixedPrices, [packageKey('net-200', null, true)]: 3000 } } : p))
+    expect(build(phoneSel(), c).offer!.promoMonthlyCents).toBe(3000)
+    expect(build(sel({ promotionIds: [W24] }), c).offer!.promoMonthlyCents).toBe(3495)
+    expect(build(sel({ tvId: 'tv-start', phone: true, promotionIds: [W24] }), c).offer!.promoMonthlyCents).toBe(3495)
   })
 
   it('supports its own promotional duration per category', () => {
     const c = withPhonePromo({ categoryMonths: { internet_bellen: 6 } })
     expect(build(phoneSel(), c).offer!.promoMonths).toBe(6)
-    expect(build(sel({ promotionIds: ['welkom-35'] }), c).offer!.promoMonths).toBe(12)
-    expect(build(sel({ tvId: 'tv-max', promotionIds: ['welkom-35'] }), c).offer!.promoMonths).toBe(12)
-    expect(run(build(phoneSel(), c).offer!).new24Cents).toBe(6 * 3500 + 18 * NET_PHONE)
+    expect(build(sel({ promotionIds: [W24] }), c).offer!.promoMonths).toBe(12)
+    expect(build(sel({ tvId: 'tv-max', promotionIds: [W24] }), c).offer!.promoMonths).toBe(12)
+    expect(run(build(phoneSel(), c).offer!).new24Cents).toBe(6 * 3495 + 18 * NET_PHONE)
   })
 
   it('category duration also applies to a monthly discount', () => {
     const c = withPhonePromo()
     c.promotions.push(promo({ id: 'korting', monthlyDiscountCents: 500, durationMonths: 12, categoryMonths: { internet_bellen: 3 } }))
-    const o = build(sel({ phone: true, promotionIds: ['korting'] }), c).offer!
-    expect(o.discounts[0].toMonth).toBe(3)
+    expect(build(sel({ phone: true, promotionIds: ['korting'] }), c).offer!.discounts[0].toMonth).toBe(3)
     expect(build(sel({ promotionIds: ['korting'] }), c).offer!.discounts[0].toMonth).toBe(12)
   })
 
   it('blocks with a clear message while the regular internet + phone price is missing', () => {
-    const c = cat()
-    c.promotions = c.promotions.map((p) => (p.id === 'welkom-35' ? { ...p, fixedPrices: { ...p.fixedPrices, [packageKey('net-200', null, true)]: 3500 } } : p))
-    const b = build(phoneSel(), c).issues.filter((i) => i.blocking)
+    const b = build(phoneSel(), cat()).issues.filter((i) => i.blocking)
     expect(b[0].message).toContain(CHECK_MESSAGE)
     expect(b[0].message).toContain('vaste telefonie')
   })
 
   it('older promotions without category settings keep their duration', () => {
-    const p = promo({ durationMonths: 9 })
-    expect(p.categoryMonths).toBeUndefined()
-    expect(promotionMonths(p, 'internet_bellen')).toBe(9)
+    expect(promotionMonths(promo({ durationMonths: 9 }), 'internet_bellen')).toBe(9)
     expect(promotionMonths({ durationMonths: null }, 'internet')).toBeNull()
     expect(promotionMonths({ durationMonths: 12, categoryMonths: { internet_bellen: null } }, 'internet_bellen')).toBeNull()
   })
@@ -563,32 +671,65 @@ describe('internet + vaste telefonie — eigen actiecategorie', () => {
     expect(packageCategory('tv-start', false)).toBe('internet_tv')
     expect(packageCategory(null, true)).toBe('internet_bellen')
     expect(packageCategory('tv-max', true)).toBe('alles_in_1')
-    const fp = withPhonePromo().promotions.find((p) => p.id === 'welkom-35')!.fixedPrices
-    expect(keysInCategory(fp, 'internet_bellen')).toEqual([packageKey('net-200', null, true)])
-    expect(keysInCategory(fp, 'internet')).toHaveLength(4)
-    expect(keysInCategory(fp, 'internet_tv')).toHaveLength(12)
-    expect(keysInCategory(fp, 'alles_in_1')).toHaveLength(0)
+    const fp = cat().promotions.find((p) => p.id === W24)!.fixedPrices
+    expect([keysInCategory(fp, 'internet'), keysInCategory(fp, 'internet_tv'), keysInCategory(fp, 'internet_bellen'), keysInCategory(fp, 'alles_in_1')].map((k) => k.length)).toEqual([4, 12, 4, 12])
   })
 
-  it('price and duration survive export and import', () => {
+  it('price, duration and percentage survive export and import', () => {
     const c = withPhonePromo({ categoryMonths: { internet_bellen: 6 } })
     const back = parsePricingExport(JSON.parse(JSON.stringify({ app: 'overstapadvies', schemaVersion: 3, pricing: c })))
-    const p = back.promotions.find((x) => x.id === 'welkom-35')!
-    expect(p.fixedPrices[packageKey('net-200', null, true)]).toBe(3500)
-    expect(p.categoryMonths).toEqual({ internet_bellen: 6 })
+    expect(back.promotions.find((x) => x.id === W24)!.categoryMonths).toEqual({ internet_bellen: 6 })
+    expect(back.promotions.find((x) => x.id === W50)!).toMatchObject({ percentDiscount: 50, contractExact: true })
     expect(build(phoneSel(), back).offer!.promoMonths).toBe(6)
   })
 
-  it('rejects an invalid category duration on import', () => {
-    const c = withPhonePromo({ categoryMonths: { internet_bellen: -2 } })
-    expect(() => parsePricingExport({ app: 'overstapadvies', schemaVersion: 3, pricing: c })).toThrow(/actiemaanden/)
+  it('rejects invalid category durations and percentages on import', () => {
+    expect(() => parsePricingExport({ app: 'overstapadvies', schemaVersion: 3, pricing: withPhonePromo({ categoryMonths: { internet_bellen: -2 } }) })).toThrow(/actiemaanden/)
+    expect(() => parsePricingExport({ app: 'overstapadvies', schemaVersion: 3, pricing: withPhonePromo({ percentDiscount: 150 }) })).toThrow(/percentage/)
   })
 
   it('customer view and saved snapshot carry the same totals', () => {
     const o = build(phoneSel(), withPhonePromo()).offer!
     const snapshot = JSON.parse(JSON.stringify(o)) as Offer
     const view = buildCustomerView({ current: { ...emptyCurrent(), monthlyCents: 6500 }, offer: snapshot, combo: emptyCombo(), period: 24, startDate: TODAY })
-    expect(view.result.new24Cents).toBe(12 * 3500 + 12 * NET_PHONE)
-    expect(view.result.totalSavingsCents).toBe(24 * 6500 - (12 * 3500 + 12 * NET_PHONE))
+    expect(view.result.new24Cents).toBe(12 * 3495 + 12 * NET_PHONE)
+    expect(view.result.totalSavingsCents).toBe(24 * 6500 - (12 * 3495 + 12 * NET_PHONE))
+  })
+})
+
+describe('switching contract duration', () => {
+  const c = cat()
+  it('replaces the fixed-price welcome offer with the one for the new duration', () => {
+    expect(promotionsForContract(c, [W24], 12, TODAY, true)).toEqual([W12])
+    expect(promotionsForContract(c, [W12], 24, TODAY, true)).toEqual([W24])
+    expect(promotionsForContract(c, [W50], 24, TODAY, true)).toEqual([W24])
+  })
+  it('drops a gift offer that does not exist for 12 months, without inventing a replacement', () => {
+    expect(promotionsForContract(c, ['welkom-bol'], 12, TODAY, true)).toEqual([])
+  })
+  it('keeps what is still valid', () => {
+    expect(promotionsForContract(c, [W50], 12, TODAY, true)).toEqual([W50])
+    expect(promotionsForContract(c, [], 12, TODAY, true)).toEqual([])
+  })
+})
+
+describe('Vodafone op dit adres', () => {
+  const net = (id: string) => seedPricing().internet.find((i) => i.id === id)!
+  it('uses the central amount per speed when switched on', () => {
+    expect(vodafoneOn(true, net('net-1000'))).toEqual({ hasVodafone: true, eligible: true, monthlyDiscountCents: 750 })
+    expect(vodafoneFor({ ...emptyCombo(), ...vodafoneOn(true, net('net-200')) }, net('net-2000')).monthlyDiscountCents).toBe(1000)
+  })
+  it('off removes the discount; unknown amount never invents one', () => {
+    expect(vodafoneOn(false, net('net-1000'))).toEqual({ hasVodafone: false, eligible: false, monthlyDiscountCents: 0 })
+    expect(vodafoneFor({ ...emptyCombo(), ...vodafoneOn(true, net('net-200')) }, net('net-4000')).monthlyDiscountCents).toBe(0)
+    expect(vodafoneFor(emptyCombo(), net('net-1000'))).toEqual(emptyCombo())
+  })
+  it('is applied once, on top of the promotion, and disappears when switched off', () => {
+    const o = build(sel({ internetId: 'net-1000', tvId: 'tv-start', promotionIds: [W24] })).offer!
+    const on = run(o, 8000, { ...emptyCombo(), ...vodafoneOn(true, net('net-1000')) })
+    const off = run(o, 8000, { ...emptyCombo(), ...vodafoneOn(false, net('net-1000')) })
+    expect(off.new24Cents - on.new24Cents).toBe(24 * 750)
+    expect(on.months[0].newCents).toBe(3495 - 750)
+    expect(on.months[12].newCents).toBe(7140 - 750)
   })
 })

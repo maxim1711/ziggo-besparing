@@ -1,6 +1,6 @@
 import type { Cents } from './money'
 import type { IsoDate } from './dates'
-import type { ContractMonths, Gift, MonthlyItem, Offer, OfferDiscount } from './types'
+import type { ContractMonths, Gift, MonthlyItem, Offer, OfferDiscount, VodafoneCombo } from './types'
 import type { Catalog as CatalogV2 } from './catalog'
 import { offerProduct } from './product'
 
@@ -97,8 +97,10 @@ export interface Promotion {
   status: PromotionStatus
   validFrom: IsoDate | null
   validTo: IsoDate | null
-  /** Minimale contractduur waarvoor de actie geldt. */
+  /** Minimale contractduur waarvoor de actie geldt (of precies deze duur bij `contractExact`). */
   contractMonths: ContractMonths
+  /** true = alleen bij precies deze contractduur (bv. een actie die er alleen bij 1 jaar is). */
+  contractExact?: boolean
   /** Aantal actiemaanden (3, 6, 9, 12, …); null = hele contractduur. */
   durationMonths: number | null
   /** Vaste actieprijs per pakket (sleutel = packageKey). Alleen deze pakketten komen in aanmerking. */
@@ -111,6 +113,11 @@ export interface Promotion {
   categoryMonths?: Partial<Record<PackageCategory, number | null>>
   /** Korting per maand bovenop de pakketprijs (0 = geen). */
   monthlyDiscountCents: Cents
+  /**
+   * Procentuele korting op de pakketprijs (internet, tv en vast bellen samen) tijdens de actiemaanden.
+   * Extra diensten, losse apparatuur en eenmalige kosten krijgen nooit deze korting.
+   */
+  percentDiscount?: number
   /** Korting op eenmalige kosten (bv. gratis aansluiting/installatie). */
   oneTimeDiscountCents: Cents
   giftId: string | null
@@ -199,12 +206,16 @@ export function promotionBlockedReason(p: Promotion, today: IsoDate, contractMon
   if (p.status === 'concept') return 'Concept: nog niet gecontroleerd'
   if (p.status === 'verlopen' || (p.validTo && p.validTo < today)) return 'Verlopen'
   if (p.validFrom && p.validFrom > today) return 'Nog niet geldig'
-  if (p.contractMonths > contractMonths) return `Alleen bij ${p.contractMonths} maanden contract`
+  if (p.contractExact ? p.contractMonths !== contractMonths : p.contractMonths > contractMonths) return `Alleen bij ${p.contractMonths} maanden contract`
   if (p.requiresTv && !hasTv) return 'Alleen bij Internet + TV'
   return null
 }
 
-const isFixedPrice = (p: Promotion) => Object.keys(p.fixedPrices).length > 0
+/** Bepaalt de pakketprijs tijdens de actie: een vaste actieprijs of een percentage korting. Max. één tegelijk. */
+const isFixedPrice = (p: Promotion) => Object.keys(p.fixedPrices).length > 0 || (p.percentDiscount ?? 0) > 0
+
+/** Actieprijs bij een procentuele korting, afgerond op hele centen. */
+export const percentPrice = (regular: Cents, percent: number): Cents => Math.round((regular * (100 - percent)) / 100)
 
 /** Kiest/vervangt een actie; acties uit dezelfde groep en een tweede vaste actieprijs vallen af. */
 export function togglePromotion(catalog: PricingCatalog, selected: string[], id: string): string[] {
@@ -366,7 +377,8 @@ export function composeOffer(catalog: PricingCatalog, sel: Selection, today: Iso
     if (isFixedPrice(p)) {
       if (fixedUsed) continue
       fixedUsed = true
-      const price = sel.overrides[`promo:${p.id}`] ?? p.fixedPrices[key]
+      const pct = p.percentDiscount ?? 0
+      const price = pct > 0 ? percentPrice(regular, pct) : (sel.overrides[`promo:${p.id}`] ?? p.fixedPrices[key])
       if (price === undefined) {
         issues.push({ blocking: true, overrideKey: `promo:${p.id}`, message: `${CHECK_MESSAGE}: de actie “${p.name}” is niet toegewezen aan ${name}. Bevestig de actieprijs voor dit pakket.` })
         continue
@@ -375,7 +387,7 @@ export function composeOffer(catalog: PricingCatalog, sel: Selection, today: Iso
       // er komt nooit een toeslag voor bellen bovenop.
       promoMonthly = price
       promoMonths = months ?? sel.contractMonths
-      lines.push({ kind: 'discount', label: p.name, cents: price - regular, note: `eerste ${promoMonths} maanden` })
+      lines.push({ kind: 'discount', label: p.name, cents: price - regular, note: `eerste ${promoMonths} maanden${pct > 0 ? `, ${pct}% op het abonnement` : ''}` })
     }
     if (p.monthlyDiscountCents > 0) {
       discounts.push({ id: p.id, label: p.name, monthlyCents: p.monthlyDiscountCents, fromMonth: 1, toMonth: months, exclusiveGroup: p.exclusiveGroup })
@@ -495,6 +507,7 @@ export function parsePricingExport(raw: unknown): PricingCatalog {
   promotions.forEach((p) => {
     if (!['concept', 'gecontroleerd', 'verlopen'].includes(p.status)) errors.push(`${p.name}: onbekende status.`)
     if (!p.fixedPrices || Object.values(p.fixedPrices).some((v) => !isCents(v) || v === null)) errors.push(`${p.name}: ongeldige actieprijs.`)
+    if (p.percentDiscount !== undefined && !(typeof p.percentDiscount === 'number' && p.percentDiscount >= 0 && p.percentDiscount <= 100)) errors.push(`${p.name}: ongeldig kortingspercentage.`)
     if (p.categoryMonths !== undefined && (typeof p.categoryMonths !== 'object' || p.categoryMonths === null || Object.values(p.categoryMonths).some((v) => v !== null && !(Number.isInteger(v) && (v as number) > 0)))) errors.push(`${p.name}: ongeldig aantal actiemaanden per categorie.`)
   })
   if (!isCents(c.activationCents ?? null)) errors.push('Eenmalige aansluitkosten: ongeldig bedrag.')
@@ -544,3 +557,43 @@ export function addMissingSeedItems(current: PricingCatalog, seed: PricingCatalo
   const missing = <T extends { id: string }>(mine: T[], theirs: T[]) => theirs.filter((t) => !mine.some((m) => m.id === t.id))
   return { ...current, gifts: [...current.gifts, ...missing(current.gifts, seed.gifts)], promotions: [...current.promotions, ...missing(current.promotions, seed.promotions)] }
 }
+
+/**
+ * Promotie-update (v5): vervangen acties gaan op "Verlopen" (niet verwijderd, zodat oude
+ * adviezen herleidbaar blijven) en de nieuwe basisacties komen bovenaan. Al het andere
+ * (prijzen, eigen acties, cadeaus, extra's) blijft precies zoals de adviseur het had.
+ */
+export function applyPromotionUpdate(current: PricingCatalog, seed: PricingCatalog, replacedIds: string[], note: string): PricingCatalog {
+  const updated = current.promotions.map((p) => (replacedIds.includes(p.id) && p.status !== 'verlopen' ? { ...p, status: 'verlopen' as const, internalNotes: [note, p.internalNotes].filter(Boolean).join(' ') } : p))
+  const missing = seed.promotions.filter((s) => !updated.some((p) => p.id === s.id))
+  const fresh = missing.filter((p) => p.channel === 'eigen')
+  const gifts = [...current.gifts, ...seed.gifts.filter((g) => !current.gifts.some((x) => x.id === g.id))]
+  return { ...current, gifts, promotions: [...fresh, ...updated, ...missing.filter((p) => p.channel !== 'eigen')] }
+}
+
+/**
+ * Andere contractduur gekozen: acties die niet meer gelden vallen af. Stond er een actie met
+ * actieprijs of procentkorting, dan komt de eerste geldige van hetzelfde soort ervoor in de plaats
+ * (bv. 12 × € 34,95 bij 24 maanden → 9 × € 34,95 bij 12 maanden). Een cadeau wordt nooit vervangen.
+ */
+export function promotionsForContract(catalog: PricingCatalog, selected: string[], contractMonths: ContractMonths, today: IsoDate, hasTv: boolean): string[] {
+  const ok = (p: Promotion) => !promotionBlockedReason(p, today, contractMonths, hasTv)
+  const chosen = selected.map((id) => catalog.promotions.find((p) => p.id === id)).filter((p): p is Promotion => !!p)
+  const kept = chosen.filter(ok).map((p) => p.id)
+  const lostPrice = chosen.some((p) => !ok(p) && isFixedPrice(p))
+  if (!lostPrice || chosen.some((p) => ok(p) && isFixedPrice(p))) return kept
+  const replacement = catalog.promotions.find((p) => p.channel === 'eigen' && isFixedPrice(p) && !p.giftId && ok(p))
+  return replacement ? togglePromotion(catalog, kept, replacement.id) : kept
+}
+
+/**
+ * "Vodafone op dit adres": het combinatievoordeel komt uit de centrale instelling per snelheid.
+ * Uit = geen voordeel. Onbekend bedrag (null) = niets verrekenen, nooit een bedrag verzinnen.
+ */
+export function vodafoneFor(combo: VodafoneCombo, internet: Pick<InternetProduct, 'vodafoneDiscountCents'> | undefined): VodafoneCombo {
+  if (!combo.hasVodafone || !combo.eligible) return combo
+  return { ...combo, monthlyDiscountCents: internet?.vodafoneDiscountCents ?? 0 }
+}
+
+export const vodafoneOn = (on: boolean, internet: Pick<InternetProduct, 'vodafoneDiscountCents'> | undefined): Pick<VodafoneCombo, 'hasVodafone' | 'eligible' | 'monthlyDiscountCents'> =>
+  on ? { hasVodafone: true, eligible: true, monthlyDiscountCents: internet?.vodafoneDiscountCents ?? 0 } : { hasVodafone: false, eligible: false, monthlyDiscountCents: 0 }
