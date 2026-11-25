@@ -2,6 +2,7 @@ import type { Cents } from './money'
 import type { IsoDate } from './dates'
 import type { ContractMonths, Gift, MonthlyItem, Offer, OfferDiscount } from './types'
 import type { Catalog as CatalogV2 } from './catalog'
+import { offerProduct } from './product'
 
 /**
  * Prijsconfiguratie v3 — de enige bron van waarheid voor pakketprijzen.
@@ -102,6 +103,12 @@ export interface Promotion {
   durationMonths: number | null
   /** Vaste actieprijs per pakket (sleutel = packageKey). Alleen deze pakketten komen in aanmerking. */
   fixedPrices: Record<string, Cents>
+  /**
+   * Afwijkend aantal actiemaanden per pakketcategorie (bv. Internet + Vaste telefonie).
+   * Ontbreekt de categorie, dan geldt `durationMonths`; null = hele contractduur.
+   * Optioneel, zodat oudere opgeslagen acties ongewijzigd blijven werken.
+   */
+  categoryMonths?: Partial<Record<PackageCategory, number | null>>
   /** Korting per maand bovenop de pakketprijs (0 = geen). */
   monthlyDiscountCents: Cents
   /** Korting op eenmalige kosten (bv. gratis aansluiting/installatie). */
@@ -148,6 +155,31 @@ export interface Selection {
 }
 
 export const emptySelection = (): Selection => ({ internetId: null, tvId: null, phone: false, extras: {}, promotionIds: [], overrides: {}, contractMonths: 24 })
+
+/** De vier soorten pakketten waarvoor een actie een eigen prijs en looptijd kan hebben. */
+export type PackageCategory = 'internet' | 'internet_tv' | 'internet_bellen' | 'alles_in_1'
+
+export const PACKAGE_CATEGORIES: { id: PackageCategory; label: string; tv: boolean; phone: boolean }[] = [
+  { id: 'internet', label: 'Alleen internet', tv: false, phone: false },
+  { id: 'internet_tv', label: 'Internet + TV', tv: true, phone: false },
+  { id: 'internet_bellen', label: 'Internet + Vaste telefonie', tv: false, phone: true },
+  { id: 'alles_in_1', label: 'Internet + TV + Vaste telefonie', tv: true, phone: true },
+]
+
+export const packageCategory = (tvId: string | null, phone: boolean): PackageCategory => (tvId ? (phone ? 'alles_in_1' : 'internet_tv') : phone ? 'internet_bellen' : 'internet')
+
+/** Aantal actiemaanden voor deze pakketcategorie; null = hele contractduur. */
+export function promotionMonths(p: Pick<Promotion, 'durationMonths' | 'categoryMonths'>, category: PackageCategory): number | null {
+  const own = p.categoryMonths?.[category]
+  return own === undefined ? p.durationMonths : own
+}
+
+/** Pakketsleutels van één categorie in een actie. */
+export const keysInCategory = (fixedPrices: Record<string, Cents>, category: PackageCategory): string[] =>
+  Object.keys(fixedPrices).filter((k) => {
+    const [, tv, phone] = k.split('|')
+    return packageCategory(tv === 'geen-tv' ? null : tv, phone === 'bellen') === category
+  })
 
 export const packageKey = (internetId: string, tvId: string | null, phone: boolean): string => `${internetId}|${tvId ?? 'geen-tv'}|${phone ? 'bellen' : 'geen-bellen'}`
 
@@ -233,6 +265,7 @@ export function composeOffer(catalog: PricingCatalog, sel: Selection, today: Iso
   const tv = sel.tvId ? catalog.tv.find((t) => t.id === sel.tvId) : undefined
   const hasTv = !!tv
   const key = packageKey(internet.id, tv?.id ?? null, sel.phone)
+  const category = packageCategory(tv?.id ?? null, sel.phone)
   const verifiedDates: (IsoDate | null)[] = []
 
   // 1–3. Pakketprijs uit de matrix; nooit optellen van losse onderdelen.
@@ -240,7 +273,8 @@ export function composeOffer(catalog: PricingCatalog, sel: Selection, today: Iso
   const name = [internet.name, tv?.name, sel.phone ? 'Bellen' : null].filter(Boolean).join(' + ')
   let regular = 0
   if (!internet.available || (tv && !tv.available) || !isVerifiedPrice(entry)) {
-    issues.push({ blocking: true, message: `${CHECK_MESSAGE}: ${name}` })
+    const noPhonePrice = sel.phone && !tv && internet.available && !isVerifiedPrice(entry)
+    issues.push({ blocking: true, message: `${CHECK_MESSAGE}: ${name}${noPhonePrice ? '. De normale maandprijs voor internet met vaste telefonie (nodig na de actie) staat nog niet in Prijzen & Aanbiedingen → Alles-in-1.' : ''}` })
   } else {
     regular = entry.cents
     verifiedDates.push(entry.source.verifiedOn)
@@ -327,6 +361,8 @@ export function composeOffer(catalog: PricingCatalog, sel: Selection, today: Iso
     }
     // Nooit twee welkomstcadeaus, ook niet als ze (per ongeluk) in verschillende groepen staan.
     if (p.giftId && giftUsed) continue
+    // Looptijd volgt de pakketcategorie (bv. een eigen looptijd voor Internet + Vaste telefonie).
+    const months = promotionMonths(p, category)
     if (isFixedPrice(p)) {
       if (fixedUsed) continue
       fixedUsed = true
@@ -335,13 +371,15 @@ export function composeOffer(catalog: PricingCatalog, sel: Selection, today: Iso
         issues.push({ blocking: true, overrideKey: `promo:${p.id}`, message: `${CHECK_MESSAGE}: de actie “${p.name}” is niet toegewezen aan ${name}. Bevestig de actieprijs voor dit pakket.` })
         continue
       }
+      // Vaste actieprijs = volledige pakketprijs voor precies deze combinatie (ook met bellen):
+      // er komt nooit een toeslag voor bellen bovenop.
       promoMonthly = price
-      promoMonths = p.durationMonths ?? sel.contractMonths
+      promoMonths = months ?? sel.contractMonths
       lines.push({ kind: 'discount', label: p.name, cents: price - regular, note: `eerste ${promoMonths} maanden` })
     }
     if (p.monthlyDiscountCents > 0) {
-      discounts.push({ id: p.id, label: p.name, monthlyCents: p.monthlyDiscountCents, fromMonth: 1, toMonth: p.durationMonths, exclusiveGroup: p.exclusiveGroup })
-      lines.push({ kind: 'discount', label: p.name, cents: -p.monthlyDiscountCents, note: p.durationMonths ? `${p.durationMonths} maanden` : 'hele looptijd' })
+      discounts.push({ id: p.id, label: p.name, monthlyCents: p.monthlyDiscountCents, fromMonth: 1, toMonth: months, exclusiveGroup: p.exclusiveGroup })
+      lines.push({ kind: 'discount', label: p.name, cents: -p.monthlyDiscountCents, note: months ? `${months} maanden` : 'hele looptijd' })
     }
     oneTimeDiscount += p.oneTimeDiscountCents
     if (p.giftId) giftUsed = true
@@ -394,6 +432,7 @@ export function composeOffer(catalog: PricingCatalog, sel: Selection, today: Iso
     promoName: promoNames.join(' + ') || undefined,
     promoValidTo,
     pricesVerifiedOn: oldest(verifiedDates),
+    product: offerProduct(catalog, internet, tv, sel),
   }
   return { offer, issues, lines, extraStates }
 }
@@ -456,6 +495,7 @@ export function parsePricingExport(raw: unknown): PricingCatalog {
   promotions.forEach((p) => {
     if (!['concept', 'gecontroleerd', 'verlopen'].includes(p.status)) errors.push(`${p.name}: onbekende status.`)
     if (!p.fixedPrices || Object.values(p.fixedPrices).some((v) => !isCents(v) || v === null)) errors.push(`${p.name}: ongeldige actieprijs.`)
+    if (p.categoryMonths !== undefined && (typeof p.categoryMonths !== 'object' || p.categoryMonths === null || Object.values(p.categoryMonths).some((v) => v !== null && !(Number.isInteger(v) && (v as number) > 0)))) errors.push(`${p.name}: ongeldig aantal actiemaanden per categorie.`)
   })
   if (!isCents(c.activationCents ?? null)) errors.push('Eenmalige aansluitkosten: ongeldig bedrag.')
   if (errors.length) throw new Error(errors.slice(0, 6).join(' '))

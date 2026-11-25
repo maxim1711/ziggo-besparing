@@ -9,7 +9,7 @@ import { Field, Input, MoneyInput, NumberInput, Segmented, Select, Switch, Texta
 import { formatDateNl, todayIso } from '@/engine/dates'
 import { newId } from '@/engine/defaults'
 import { formatEuro } from '@/engine/money'
-import { findPrice, formatSpeed, packageKey, parsePricingExport, PRICING_SCHEMA_VERSION, staleCount, type ExtraCategory, type GiftDefinition, type PricingCatalog, type Promotion, type PromotionChannel, type PromotionStatus, type Source, type TvPackage } from '@/engine/pricing'
+import { findPrice, formatSpeed, isVerifiedPrice, keysInCategory, PACKAGE_CATEGORIES, packageKey, parsePricingExport, promotionMonths, type PackageCategory, PRICING_SCHEMA_VERSION, staleCount, type ExtraCategory, type GiftDefinition, type PricingCatalog, type Promotion, type PromotionChannel, type PromotionStatus, type Source, type TvPackage } from '@/engine/pricing'
 import type { GiftType } from '@/engine/types'
 import { cn, downloadFile } from '@/lib/utils'
 import { PRE_V3_BACKUP_KEY, useData } from '@/store/data'
@@ -68,16 +68,16 @@ function setMatrixPrice(c: PricingCatalog, internetId: string, tvId: string | nu
   return { ...c, prices: existing ? c.prices.map((p) => (p === existing ? entry : p)) : [...c.prices, entry] }
 }
 
-function Grid({ pricing, columns, get, set, verifiedOf }: { pricing: PricingCatalog; columns: (TvPackage | null)[]; get: (internetId: string, tvId: string | null) => number | null; set: (internetId: string, tvId: string | null, cents: number | null) => void; verifiedOf?: (internetId: string, tvId: string | null) => string | null }) {
+function Grid({ pricing, columns, get, set, verifiedOf, nullLabel = 'Alleen internet' }: { pricing: PricingCatalog; columns: (TvPackage | null)[]; nullLabel?: string; get: (internetId: string, tvId: string | null) => number | null; set: (internetId: string, tvId: string | null, cents: number | null) => void; verifiedOf?: (internetId: string, tvId: string | null) => string | null }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[560px] border-separate border-spacing-x-2 border-spacing-y-2">
+      <table className={cn('w-full border-separate border-spacing-x-2 border-spacing-y-2', columns.length > 2 ? 'min-w-[560px]' : 'max-w-[420px]')}>
         <thead>
           <tr className="text-left text-sm text-muted-foreground">
             <th className="font-medium">Internet</th>
             {columns.map((t) => (
               <th key={t?.id ?? 'geen'} className="font-medium">
-                {t?.name ?? 'Alleen internet'}
+                {t?.name ?? nullLabel}
               </th>
             ))}
           </tr>
@@ -93,7 +93,7 @@ function Grid({ pricing, columns, get, set, verifiedOf }: { pricing: PricingCata
                 const v = verifiedOf?.(i.id, t?.id ?? null)
                 return (
                   <td key={t?.id ?? 'geen'} className="min-w-[120px]">
-                    <MoneyInput aria-label={`${i.name} ${t?.name ?? 'alleen internet'}`} value={get(i.id, t?.id ?? null)} onChange={(c) => set(i.id, t?.id ?? null, c)} placeholder="—" />
+                    <MoneyInput aria-label={`${i.name} ${t?.name ?? nullLabel.toLowerCase()}`} value={get(i.id, t?.id ?? null)} onChange={(c) => set(i.id, t?.id ?? null, c)} placeholder="—" />
                     {verifiedOf && <div className="mt-0.5 h-4 text-[11px] text-muted-foreground">{v ? `✓ ${v.slice(8)}-${v.slice(5, 7)}-${v.slice(0, 4)}` : get(i.id, t?.id ?? null) !== null ? 'niet gecontroleerd' : ''}</div>}
                   </td>
                 )
@@ -282,8 +282,8 @@ function MatrixPanel({ phone }: { phone: boolean }) {
       <Card className="p-5">
         <h2 className="text-[16px] font-semibold">{phone ? 'Alles-in-1: internet + tv + vast bellen' : 'Internet + TV'}</h2>
         <p className="mb-3 text-sm text-muted-foreground">Volledige pakketprijs per maand, inclusief btw. De app telt nooit een losse tv-prijs bij internet op. Een gewijzigd bedrag geldt als vandaag gecontroleerd.</p>
-        <Grid pricing={pricing} columns={phone ? [null, ...pricing.tv] : pricing.tv} get={(n, t) => findPrice(pricing, n, t, phone)?.cents ?? null} set={(n, t, c) => update((p) => setMatrixPrice(p, n, t, phone, c))} verifiedOf={(n, t) => findPrice(pricing, n, t, phone)?.source.verifiedOn ?? null} />
-        {phone && <p className="mt-2 text-xs text-muted-foreground">“Alleen internet” met vast bellen staat niet in de gecontroleerde tabel en is daarom leeg. Belkosten zelf worden niet berekend.</p>}
+        <Grid pricing={pricing} nullLabel="Internet + vaste telefonie" columns={phone ? [null, ...pricing.tv] : pricing.tv} get={(n, t) => findPrice(pricing, n, t, phone)?.cents ?? null} set={(n, t, c) => update((p) => setMatrixPrice(p, n, t, phone, c))} verifiedOf={(n, t) => findPrice(pricing, n, t, phone)?.source.verifiedOn ?? null} />
+        {phone && <p className="mt-2 text-xs text-muted-foreground">“Internet + vaste telefonie” (zonder tv) stond niet in de gecontroleerde tabel; vul de normale maandprijs in zodra u die hebt gecontroleerd. Die prijs geldt na een actieperiode. Belkosten zelf worden niet berekend.</p>}
       </Card>
       {!phone && (
         <>
@@ -492,19 +492,77 @@ function VodafonePanel() {
 
 /* ---------- Acties en Mijn Salesacties ---------- */
 
+/** Vaste actieprijs per pakketcategorie, elk met eigen prijzen per snelheid en eventueel een eigen looptijd. */
+function PromoCategoryPrices({ promo: e, pricing, cat, setCat, patch }: { promo: Promotion; pricing: PricingCatalog; cat: PackageCategory; setCat: (c: PackageCategory) => void; patch: (p: Partial<Promotion>) => void }) {
+  const c = PACKAGE_CATEGORIES.find((x) => x.id === cat)!
+  const nets = pricing.internet.filter((i) => i.available)
+  const own = e.categoryMonths?.[cat]
+  const months = (n: number | null) => (n ? `${n} maanden` : 'hele looptijd')
+  const missingRegular = nets.filter((i) => !isVerifiedPrice(findPrice(pricing, i.id, null, true)))
+  const setMonths = (n: number | null) => {
+    const next = { ...(e.categoryMonths ?? {}) }
+    if (n === null) delete next[cat]
+    else next[cat] = n
+    patch({ categoryMonths: Object.keys(next).length ? next : undefined })
+  }
+  return (
+    <div className="rounded-2xl border p-4">
+      <h3 className="font-semibold">Vaste actieprijs per pakket</h3>
+      <p className="text-sm text-muted-foreground">Volledige pakketprijs per maand tijdens de actie. Vul alleen in waarvoor de actie geldt; na de actie geldt weer de normale pakketprijs. De app kiest automatisch de prijs die bij het gekozen pakket hoort.</p>
+      <div role="tablist" aria-label="Pakketcategorie" className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        {PACKAGE_CATEGORIES.map((x) => {
+          const filled = keysInCategory(e.fixedPrices, x.id).length
+          const on = x.id === cat
+          return (
+            <button key={x.id} type="button" role="tab" aria-selected={on} onClick={() => setCat(x.id)} className={cn('min-h-[60px] rounded-xl border-2 px-3 py-2 text-left transition-colors', on ? 'border-primary bg-primary-soft/60' : 'border-border hover:border-primary/40')}>
+              <span className="block text-sm font-semibold leading-tight">{x.label}</span>
+              <span className={cn('block text-xs', filled ? 'text-foreground' : 'text-muted-foreground')}>{filled ? `${filled} ${filled === 1 ? 'prijs' : 'prijzen'} · ${months(promotionMonths(e, x.id))}` : 'Niet ingesteld'}</span>
+            </button>
+          )
+        })}
+      </div>
+      <div className="mt-4">
+        <Field label={`Actiemaanden voor ${c.label}`} hint={`Leeg = zoals de actie (${months(e.durationMonths)})`} className="max-w-[300px]">
+          <NumberInput value={own ?? null} onChange={(n) => setMonths(n && n > 0 ? n : null)} nullable placeholder={e.durationMonths ? String(e.durationMonths) : 'Hele looptijd'} suffix="maanden" max={24} />
+        </Field>
+      </div>
+      <Grid
+        pricing={pricing}
+        nullLabel={c.phone ? 'Internet + vaste telefonie' : 'Alleen internet'}
+        columns={c.tv ? pricing.tv : [null]}
+        get={(n, t) => e.fixedPrices[packageKey(n, t, c.phone)] ?? null}
+        set={(n, t, v) => {
+          const next = { ...e.fixedPrices }
+          if (v === null) delete next[packageKey(n, t, c.phone)]
+          else next[packageKey(n, t, c.phone)] = v
+          patch({ fixedPrices: next })
+        }}
+      />
+      {cat === 'internet_bellen' && (
+        <p className={cn('mt-2 text-xs', missingRegular.length ? 'font-medium text-warn' : 'text-muted-foreground')}>
+          {missingRegular.length
+            ? `Let op: de normale maandprijs van internet met vaste telefonie ontbreekt nog voor ${missingRegular.map((i) => formatSpeed(i.downloadMbps)).join(', ')}. Die is nodig voor de maanden na de actie; vul hem in op het tabblad Alles-in-1.`
+            : 'Deze prijs is inclusief vaste telefonie; er komt geen toeslag voor bellen bovenop. Geldt niet voor pakketten met tv.'}
+        </p>
+      )}
+    </div>
+  )
+}
+
 const blankPromo = (channel: PromotionChannel): Promotion => ({ id: newId(), name: '', channel, status: 'concept', validFrom: null, validTo: null, contractMonths: 24, durationMonths: 12, fixedPrices: {}, monthlyDiscountCents: 0, oneTimeDiscountCents: 0, giftId: null, exclusiveGroup: null, requiresTv: false, conditions: '', benefits: '', source: { url: null, verifiedOn: null }, internalNotes: '' })
 
 function PromoPanel({ channel, q }: { channel: PromotionChannel; q: string }) {
   const l = useList('promotions')
   const { pricing } = l
   const e = l.editing
-  const [phone, setPhone] = useState(false)
+  const [cat, setCat] = useState<PackageCategory>('internet')
   const today = todayIso()
   const items = l.items.filter((p) => p.channel === channel && match(q, p.name, p.conditions))
   const describe = (p: Promotion) => {
     const n = Object.keys(p.fixedPrices).length
+    const cats = PACKAGE_CATEGORIES.filter((c) => keysInCategory(p.fixedPrices, c.id).length > 0).map((c) => c.label)
     const parts = [
-      n > 0 && `vaste actieprijs voor ${n} pakket${n === 1 ? '' : 'ten'}`,
+      n > 0 && `vaste actieprijs voor ${n} pakket${n === 1 ? '' : 'ten'} (${cats.join(', ')})`,
       p.monthlyDiscountCents > 0 && `${formatEuro(p.monthlyDiscountCents)} korting p/m`,
       (n > 0 || p.monthlyDiscountCents > 0) && (p.durationMonths ? `${p.durationMonths} maanden` : 'hele looptijd'),
       p.oneTimeDiscountCents > 0 && `${formatEuro(p.oneTimeDiscountCents)} korting eenmalig`,
@@ -591,26 +649,7 @@ function PromoPanel({ channel, q }: { channel: PromotionChannel; q: string }) {
               </Field>
             </div>
 
-            <div className="rounded-2xl border p-4">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold">Vaste actieprijs per pakket</h3>
-                  <p className="text-sm text-muted-foreground">Vul alleen de pakketten in waarvoor de actieprijs geldt. Na de actie geldt weer de normale pakketprijs.</p>
-                </div>
-                <Segmented size="sm" className="w-auto" value={phone ? 'ja' : 'nee'} onChange={(v) => setPhone(v === 'ja')} options={[{ value: 'nee', label: 'Zonder bellen' }, { value: 'ja', label: 'Met bellen' }]} />
-              </div>
-              <Grid
-                pricing={pricing}
-                columns={[null, ...pricing.tv]}
-                get={(n, t) => e.fixedPrices[packageKey(n, t, phone)] ?? null}
-                set={(n, t, c) => {
-                  const next = { ...e.fixedPrices }
-                  if (c === null) delete next[packageKey(n, t, phone)]
-                  else next[packageKey(n, t, phone)] = c
-                  l.patch({ fixedPrices: next })
-                }}
-              />
-            </div>
+            <PromoCategoryPrices promo={e} pricing={pricing} cat={cat} setCat={setCat} patch={l.patch} />
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Korting per maand" hint="Bovenop de pakket- of actieprijs; 0 = geen">

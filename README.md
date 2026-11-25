@@ -62,6 +62,17 @@ Is het nieuwe abonnement duurder, dan toont het aanbodscherm "Gemiddeld € x me
 
 24 maanden is overal de standaard. Een contract van 12 maanden, een tweede optie of volledig handmatige prijzen staan in stap 2 onder **Geavanceerd**.
 
+## Productpresentatie
+
+- **Snelheid**: na het kiezen van een snelheid verschijnt een meter met het exacte aantal Mbit/s en de inbegrepen wifi-versterkers (uit *Internet → Wifi-versterkers inbegrepen*). De meter is bewust niet-lineair en heeft geen getallen op de schaal; het is de abonnementssnelheid, geen meting.
+- **Tv-pakketten**: kaarten met zenders en kenmerken uit *Internet + TV → omschrijving*. "Alles van TV Start" wordt automatisch doorgerekend; "Opnemen" verschijnt als "Programma’s opnemen".
+- **Uitgebreid vergelijken** (stap 1, optioneel): huidige snelheid, wifi-versterkers, vaste telefonie, opnemen en zenders. Alleen wat is ingevuld wordt vergeleken; "Weet ik niet" telt nooit als nee of 0.
+- **Wifi-opstelling**: op het scherm "Overstappen zonder gedoe" opent **Bekijk uw wifi-opstelling** een voorbeeldwoning met modem en versterkers. Alleen ter illustratie, geen dekkingsgarantie.
+
+## Actie voor Internet + Vaste telefonie
+
+In een actie (Mijn Salesacties → bewerken) staan vier categorieën: Alleen internet, Internet + TV, **Internet + Vaste telefonie** en Internet + TV + Vaste telefonie. Per categorie vult u de actieprijs per snelheid in en eventueel een eigen aantal actiemaanden. De app kiest automatisch de prijs die bij het gekozen pakket hoort; bij Internet + Vaste telefonie is het bedrag inclusief bellen (geen toeslag erbovenop). Vul ook de normale prijs in op het tabblad Alles-in-1, kolom "Internet + vaste telefonie": die geldt na de actie.
+
 ## Prijzen zelf bijwerken
 
 Alles staat in **Prijzen & Aanbiedingen**; er is geen programmeerwerk nodig.
@@ -70,7 +81,7 @@ Alles staat in **Prijzen & Aanbiedingen**; er is geen programmeerwerk nodig.
 | --- | --- |
 | Internet | prijs "alleen internet" per snelheid, aan/uit, eenmalige aansluitkosten. 4 en 8 Gbit staan klaar maar uit, zonder prijs. |
 | Internet + TV | de officiële pakketprijzen als matrix (snelheid × tv-pakket) en de omschrijving van de tv-pakketten |
-| Alles-in-1 | dezelfde matrix mét vast bellen |
+| Alles-in-1 | dezelfde matrix mét vast bellen, plus de kolom **Internet + vaste telefonie** (zonder tv): de normale prijs na een actie |
 | Extra diensten | ontvangers, wifi-versterkers, sport, film, bundels, streaming; prijs en aan/uit direct in de lijst |
 | Vodafone | referentiekorting per snelheid |
 | Acties | openbare websiteacties (referentie) |

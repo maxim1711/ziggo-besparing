@@ -1,16 +1,18 @@
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, FileDown, Handshake, Info, Send, Wifi, Wrench } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { lazy, Suspense, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatedMoney } from '@/components/AnimatedMoney'
 import { Breakdown } from '@/components/Breakdown'
 import { GiftImage } from '@/components/GiftImage'
 import { OptionTabs } from '@/components/OptionTabs'
+import { ProductComparison } from '@/components/product/ProductComparison'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { priceStory, type CustomerView } from '@/engine/customerView'
 import { formatDateNl } from '@/engine/dates'
 import { formatEuro } from '@/engine/money'
+import { hardwareLabel, productComparison, totalExtenders } from '@/engine/product'
 import { buildSwitchSlide, differenceView, nextSlide, slideControls, type SwitchSlide } from '@/engine/switching'
 import { downloadProposalPdf } from '@/export/pdf'
 import { buildShareText, shareText } from '@/export/shareText'
@@ -26,6 +28,9 @@ import { toast } from '@/store/toast'
 
 const eur = (c: number) => formatEuro(c, { decimals: 'auto' })
 
+/** Pas laden als de adviseur de wifi-opstelling opent: geen invloed op het opstarten. */
+const WifiHouse = lazy(() => import('@/components/product/WifiHouse'))
+
 function Result({ v }: { v: CustomerView }) {
   const r = v.result
   const d = differenceView(r)
@@ -35,18 +40,18 @@ function Result({ v }: { v: CustomerView }) {
     return (
       <div className="rounded-3xl bg-muted p-7">
         <div className="text-lg font-medium text-muted-foreground">Uw kosten over {r.period} maanden</div>
-        <AnimatedMoney cents={r.newPeriodCents} decimals="auto" className="mt-1 block text-6xl font-semibold tracking-tight" />
+        <AnimatedMoney memoryKey="presentatie:kosten" cents={r.newPeriodCents} decimals="auto" className="mt-1 block text-6xl font-semibold tracking-tight" />
         <p className="mt-3 text-base text-muted-foreground">{d.explanation}</p>
       </div>
     )
   }
   if (d.kind === 'besparing') {
     return (
-      <div className="rounded-3xl bg-good-soft p-7">
-        <div className="text-lg font-medium">{d.headline}</div>
-        <AnimatedMoney cents={d.totalCents} decimals="auto" className="mt-1 block text-[clamp(56px,7vw,88px)] font-semibold leading-none tracking-tighter text-good" />
-        <p className="mt-4 text-lg">{d.subline}</p>
-        <p className="mt-1 text-base text-muted-foreground">{now}</p>
+      <div className="rounded-3xl border bg-card px-7 py-8 shadow-card">
+        <AnimatedMoney memoryKey="presentatie:besparing" cents={d.totalCents} className="block text-[clamp(60px,7.6vw,96px)] font-semibold leading-none tracking-tighter text-good" />
+        <div className="mt-3 text-xl font-semibold tracking-tight">Totale besparing over {r.period} maanden</div>
+        <p className="tnum mt-4 text-lg text-muted-foreground">{d.subline}</p>
+        {now && <p className="mt-1 text-base text-muted-foreground">{now}</p>}
       </div>
     )
   }
@@ -55,7 +60,7 @@ function Result({ v }: { v: CustomerView }) {
       <div className="rounded-3xl bg-warn-soft p-7">
         <div className="text-lg font-medium">Dit kost u meer dan nu</div>
         <div className="mt-2 text-[clamp(30px,3.6vw,44px)] font-semibold leading-[1.1] tracking-tight text-warn">
-          Gemiddeld <AnimatedMoney cents={d.averageMonthlyCents} decimals="auto" /> meer per maand
+          Gemiddeld <AnimatedMoney memoryKey="presentatie:meerkosten" cents={d.averageMonthlyCents} decimals="auto" /> meer per maand
         </div>
         <p className="tnum mt-2 text-2xl font-semibold">{d.subline}</p>
         <p className="mt-3 text-base text-muted-foreground">{d.explanation}</p>
@@ -113,7 +118,7 @@ function OfferSlide({ v }: { v: CustomerView }) {
           ))}
         </ul>
         <div className="mt-9 flex flex-wrap items-baseline gap-x-3">
-          <AnimatedMoney cents={story.nowCents} className="text-[clamp(64px,9vw,112px)] font-semibold leading-none tracking-tighter" />
+          <AnimatedMoney memoryKey="presentatie:maandprijs" cents={story.nowCents} className="text-[clamp(64px,9vw,112px)] font-semibold leading-none tracking-tighter" />
           <span className="whitespace-nowrap text-2xl text-muted-foreground">per maand</span>
         </div>
         <dl className="mt-5 space-y-1.5 text-[22px] leading-snug">
@@ -136,6 +141,7 @@ function OfferSlide({ v }: { v: CustomerView }) {
       <section className="space-y-4">
         <Result v={v} />
         <GiftCard v={v} />
+        <ProductComparison rows={productComparison(v.current, offer.product)} currentName={v.current.provider || 'Nu'} nextName={offer.provider} />
         {mobile > 0 && (
           <p className="rounded-2xl border px-5 py-3 text-base text-muted-foreground">
             Daarnaast: <strong className="tnum text-foreground">{eur(mobile)}</strong> korting per maand op uw Vodafone-rekening. Dit staat los van uw Ziggo-abonnement en is hierboven niet meegeteld.
@@ -149,7 +155,7 @@ function OfferSlide({ v }: { v: CustomerView }) {
 const ICONS = { handshake: Handshake, wifi: Wifi, wrench: Wrench }
 const NAVY = '#0b1f4b'
 
-function SwitchSlideView({ slide, onDetails }: { slide: SwitchSlide; onDetails: () => void }) {
+function SwitchSlideView({ slide, onDetails, onWifi }: { slide: SwitchSlide; onDetails: () => void; onWifi?: () => void }) {
   return (
     <div className="w-full">
       <div className="text-center">
@@ -177,7 +183,12 @@ function SwitchSlideView({ slide, onDetails }: { slide: SwitchSlide; onDetails: 
           )
         })}
       </div>
-      <div className="mt-5 text-center [@media(max-height:800px)]:mt-1">
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-x-2 [@media(max-height:800px)]:mt-1">
+        {onWifi && (
+          <button onClick={onWifi} className="flex min-h-[44px] items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground">
+            <Wifi className="size-4 text-accent" /> Bekijk uw wifi-opstelling
+          </button>
+        )}
         <button onClick={onDetails} className="min-h-[44px] px-3 text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
           Voorwaarden
         </button>
@@ -195,6 +206,8 @@ export default function PresentationPage() {
   const [slide, setSlide] = useState(0)
   const [calc, setCalc] = useState(false)
   const [details, setDetails] = useState(false)
+  const [wifi, setWifi] = useState(false)
+  const internetCatalog = useData((s) => s.pricing.internet)
   const [next, setNext] = useState(false)
   const [busy, setBusy] = useState(false)
   const touch = useRef<{ x: number; y: number } | null>(null)
@@ -213,13 +226,15 @@ export default function PresentationPage() {
   const switching = buildSwitchSlide(checklist, texts, offer.provider)
   const controls = slideControls(slide)
   const tabs = ['Uw aanbod', switching.title]
+  // Aantal apparaten uit de productgegevens van de aanbieding; oudere opgeslagen aanbiedingen via de snelheid.
+  const extenders = offer.product ? totalExtenders(offer.product) : (internetCatalog.find((i) => i.downloadMbps === offer.speedMbps)?.includedExtenders ?? null)
 
   return (
     <div
       className="fixed inset-0 flex flex-col overflow-y-auto bg-white"
       onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
       onTouchEnd={(e) => {
-        if (!touch.current || calc || details || next) return
+        if (!touch.current || calc || details || next || wifi) return
         const dx = e.changedTouches[0].clientX - touch.current.x
         const dy = e.changedTouches[0].clientY - touch.current.y
         if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.5) setSlide((s) => nextSlide(s, dx < 0 ? 'volgende' : 'vorige'))
@@ -242,7 +257,7 @@ export default function PresentationPage() {
       </header>
 
       <main key={`${slide}-${active.buildIndex}`} className="mx-auto flex w-full max-w-[1180px] flex-1 animate-fade-up items-center px-6 py-6 sm:px-10 [@media(max-height:800px)]:py-2">
-        {slide === 0 ? <OfferSlide v={v} /> : <SwitchSlideView slide={switching} onDetails={() => setDetails(true)} />}
+        {slide === 0 ? <OfferSlide v={v} /> : <SwitchSlideView slide={switching} onDetails={() => setDetails(true)} onWifi={extenders === null ? undefined : () => setWifi(true)} />}
       </main>
 
       <footer className="safe-b mx-auto w-full max-w-[1180px] px-6 pb-5 sm:px-10">
@@ -270,6 +285,10 @@ export default function PresentationPage() {
 
       <Dialog wide open={calc} onOpenChange={setCalc} title="Berekening" description="Zo is het bedrag opgebouwd, inclusief alle kosten en aannames.">
         <Breakdown view={v} lines={active.lines} />
+      </Dialog>
+
+      <Dialog wide open={wifi} onOpenChange={setWifi} title="Uw wifi-opstelling" description={extenders === null ? undefined : hardwareLabel(extenders)}>
+        <Suspense fallback={<div className="aspect-[680/410] w-full rounded-2xl bg-muted/50" />}>{extenders !== null && <WifiHouse extenders={extenders} />}</Suspense>
       </Dialog>
 
       <Dialog open={details} onOpenChange={setDetails} title="Voorwaarden bij overstappen en installatie">

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { compare } from './calc'
 import { buildCustomerView } from './customerView'
 import { emptyCombo, emptyCurrent } from './defaults'
-import { addMissingSeedItems, CHECK_MESSAGE, composeOffer, emptySelection, findPrice, migrateCatalogV2, packageKey, parsePricingExport, promotionBlockedReason, staleCount, togglePromotion, type PricingCatalog, type Promotion, type Selection } from './pricing'
+import { addMissingSeedItems, CHECK_MESSAGE, composeOffer, emptySelection, findPrice, keysInCategory, migrateCatalogV2, packageCategory, packageKey, promotionMonths, parsePricingExport, promotionBlockedReason, staleCount, togglePromotion, type PricingCatalog, type Promotion, type Selection } from './pricing'
 import { seedPricing } from './pricingSeed'
 import { sampleCatalog } from './catalog'
 import type { Offer, VodafoneCombo } from './types'
@@ -477,5 +477,118 @@ describe('welcome offers — exactly one of three', () => {
     expect(merged.promotions.find((p) => p.id === 'welkom-35')!.name).toBe('Door mij aangepast')
     expect(merged.promotions.map((p) => p.id).sort()).toEqual(['promo-3495-12m', 'welkom-35', 'welkom-bol', 'welkom-samsung'])
     expect(merged.gifts).toHaveLength(2)
+  })
+})
+
+describe('internet + vaste telefonie — eigen actiecategorie', () => {
+  const NET_PHONE = 4695 // fictief normaal tarief voor de test; in de seed bewust leeg
+  /** Catalogus met een gecontroleerde normale prijs voor Internet 200 + bellen en de welkomstactie uitgebreid. */
+  const withPhonePromo = (over: Partial<Promotion> = {}): PricingCatalog => {
+    const c = cat()
+    c.prices = c.prices.map((p) => (p.internetId === 'net-200' && p.tvId === null && p.phone ? { ...p, cents: NET_PHONE, source: { url: null, verifiedOn: TODAY } } : p))
+    c.promotions = c.promotions.map((p) => (p.id === 'welkom-35' ? { ...p, fixedPrices: { ...p.fixedPrices, [packageKey('net-200', null, true)]: 3500 }, ...over } : p))
+    return c
+  }
+  const phoneSel = (over: Partial<Selection> = {}) => sel({ phone: true, promotionIds: ['welkom-35'], ...over })
+
+  it('applies the configured package price for internet + fixed telephony automatically', () => {
+    const { offer, issues, lines } = build(phoneSel(), withPhonePromo())
+    expect(issues.filter((i) => i.blocking)).toEqual([])
+    expect(offer!.promoMonthlyCents).toBe(3500)
+    expect(offer!.promoMonths).toBe(12)
+    expect(offer!.regularMonthlyCents).toBe(NET_PHONE)
+    expect(offer!.kind).toBe('internet')
+    expect(offer!.includes).toContain('Vast bellen')
+    // Geen losse bellentoeslag: alleen de pakketregel en de actie.
+    expect(lines.map((l) => l.kind)).toEqual(['pakket', 'discount'])
+    expect(run(offer!).new24Cents).toBe(12 * 3500 + 12 * NET_PHONE)
+  })
+
+  it('does not treat the phone price as internet-only promo plus a surcharge', () => {
+    const { offer } = build(phoneSel(), withPhonePromo())
+    expect(offer!.promoMonthlyCents).not.toBe(3500 + (NET_PHONE - 4195))
+    expect(offer!.extras).toEqual([])
+  })
+
+  it('leaves internet-only and internet + tv promotions unchanged', () => {
+    const c = withPhonePromo()
+    const netOnly = build(sel({ promotionIds: ['welkom-35'] }), c).offer!
+    expect([netOnly.promoMonthlyCents, netOnly.regularMonthlyCents, netOnly.promoMonths]).toEqual([3500, 4195, 12])
+    const tv = build(sel({ tvId: 'tv-start', promotionIds: ['welkom-35'] }), c).offer!
+    expect([tv.promoMonthlyCents, tv.regularMonthlyCents, tv.promoMonths]).toEqual([3500, 5840, 12])
+  })
+
+  it('never overrides internet + tv + fixed telephony (Alles-in-1)', () => {
+    const c = withPhonePromo()
+    const r = build(sel({ tvId: 'tv-start', phone: true, promotionIds: ['welkom-35'] }), c)
+    expect(r.offer!.regularMonthlyCents).toBe(6335)
+    expect(r.offer!.promoMonthlyCents).toBe(6335)
+    expect(r.issues.some((i) => i.blocking && i.overrideKey === 'promo:welkom-35')).toBe(true)
+  })
+
+  it('supports its own promotional duration per category', () => {
+    const c = withPhonePromo({ categoryMonths: { internet_bellen: 6 } })
+    expect(build(phoneSel(), c).offer!.promoMonths).toBe(6)
+    expect(build(sel({ promotionIds: ['welkom-35'] }), c).offer!.promoMonths).toBe(12)
+    expect(build(sel({ tvId: 'tv-max', promotionIds: ['welkom-35'] }), c).offer!.promoMonths).toBe(12)
+    expect(run(build(phoneSel(), c).offer!).new24Cents).toBe(6 * 3500 + 18 * NET_PHONE)
+  })
+
+  it('category duration also applies to a monthly discount', () => {
+    const c = withPhonePromo()
+    c.promotions.push(promo({ id: 'korting', monthlyDiscountCents: 500, durationMonths: 12, categoryMonths: { internet_bellen: 3 } }))
+    const o = build(sel({ phone: true, promotionIds: ['korting'] }), c).offer!
+    expect(o.discounts[0].toMonth).toBe(3)
+    expect(build(sel({ promotionIds: ['korting'] }), c).offer!.discounts[0].toMonth).toBe(12)
+  })
+
+  it('blocks with a clear message while the regular internet + phone price is missing', () => {
+    const c = cat()
+    c.promotions = c.promotions.map((p) => (p.id === 'welkom-35' ? { ...p, fixedPrices: { ...p.fixedPrices, [packageKey('net-200', null, true)]: 3500 } } : p))
+    const b = build(phoneSel(), c).issues.filter((i) => i.blocking)
+    expect(b[0].message).toContain(CHECK_MESSAGE)
+    expect(b[0].message).toContain('vaste telefonie')
+  })
+
+  it('older promotions without category settings keep their duration', () => {
+    const p = promo({ durationMonths: 9 })
+    expect(p.categoryMonths).toBeUndefined()
+    expect(promotionMonths(p, 'internet_bellen')).toBe(9)
+    expect(promotionMonths({ durationMonths: null }, 'internet')).toBeNull()
+    expect(promotionMonths({ durationMonths: 12, categoryMonths: { internet_bellen: null } }, 'internet_bellen')).toBeNull()
+  })
+
+  it('maps package keys to the right category', () => {
+    expect(packageCategory(null, false)).toBe('internet')
+    expect(packageCategory('tv-start', false)).toBe('internet_tv')
+    expect(packageCategory(null, true)).toBe('internet_bellen')
+    expect(packageCategory('tv-max', true)).toBe('alles_in_1')
+    const fp = withPhonePromo().promotions.find((p) => p.id === 'welkom-35')!.fixedPrices
+    expect(keysInCategory(fp, 'internet_bellen')).toEqual([packageKey('net-200', null, true)])
+    expect(keysInCategory(fp, 'internet')).toHaveLength(4)
+    expect(keysInCategory(fp, 'internet_tv')).toHaveLength(12)
+    expect(keysInCategory(fp, 'alles_in_1')).toHaveLength(0)
+  })
+
+  it('price and duration survive export and import', () => {
+    const c = withPhonePromo({ categoryMonths: { internet_bellen: 6 } })
+    const back = parsePricingExport(JSON.parse(JSON.stringify({ app: 'overstapadvies', schemaVersion: 3, pricing: c })))
+    const p = back.promotions.find((x) => x.id === 'welkom-35')!
+    expect(p.fixedPrices[packageKey('net-200', null, true)]).toBe(3500)
+    expect(p.categoryMonths).toEqual({ internet_bellen: 6 })
+    expect(build(phoneSel(), back).offer!.promoMonths).toBe(6)
+  })
+
+  it('rejects an invalid category duration on import', () => {
+    const c = withPhonePromo({ categoryMonths: { internet_bellen: -2 } })
+    expect(() => parsePricingExport({ app: 'overstapadvies', schemaVersion: 3, pricing: c })).toThrow(/actiemaanden/)
+  })
+
+  it('customer view and saved snapshot carry the same totals', () => {
+    const o = build(phoneSel(), withPhonePromo()).offer!
+    const snapshot = JSON.parse(JSON.stringify(o)) as Offer
+    const view = buildCustomerView({ current: { ...emptyCurrent(), monthlyCents: 6500 }, offer: snapshot, combo: emptyCombo(), period: 24, startDate: TODAY })
+    expect(view.result.new24Cents).toBe(12 * 3500 + 12 * NET_PHONE)
+    expect(view.result.totalSavingsCents).toBe(24 * 6500 - (12 * 3500 + 12 * NET_PHONE))
   })
 })

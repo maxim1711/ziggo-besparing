@@ -35,6 +35,8 @@ export interface CurrentSubscription {
   /** Verwacht toekomstig maandbedrag; vervangt het basisbedrag vanaf futureFromMonth. */
   futureMonthlyCents: Cents | null
   futureFromMonth: number
+  /** Optioneel; ontbreekt bij oudere adviezen. Snelheid staat in `speedMbps`. */
+  product?: CurrentProduct
 }
 
 /** Maandkorting op een nieuwe aanbieding. */
@@ -95,6 +97,36 @@ export interface Offer {
   promoValidTo?: IsoDate | null
   /** Oudste controledatum van de gebruikte prijzen. */
   pricesVerifiedOn?: IsoDate | null
+  /** Productkenmerken uit de prijsconfiguratie (snelheid, wifi, tv). Ontbreekt bij oudere opgeslagen aanbiedingen. */
+  product?: OfferProduct
+}
+
+/** Wat er in het gekozen pakket zit, afgeleid uit de centrale productconfiguratie. */
+export interface OfferProduct {
+  downloadMbps: number
+  uploadMbps: number | null
+  /** Wifi-versterkers die bij de snelheid zijn inbegrepen. */
+  includedExtenders: number
+  /** Extra (bijbetaalde) wifi-versterkers. */
+  extraExtenders: number
+  tvName: string | null
+  /** Ondergrens aantal zenders (uit bv. "70+ zenders"); null = onbekend of geen tv. */
+  channels: number | null
+  channelsLabel: string | null
+  /** null = niet bekend uit de productgegevens. */
+  recording: boolean | null
+  phone: boolean
+}
+
+/**
+ * Optionele productgegevens van het huidige abonnement ("Uitgebreid vergelijken").
+ * null = onbekend; dat is iets anders dan 0 of "nee" en wordt nooit vergeleken.
+ */
+export interface CurrentProduct {
+  extenders: number | null
+  recording: boolean | null
+  phone: boolean | null
+  channels: number | null
 }
 
 export interface VodafoneCombo {

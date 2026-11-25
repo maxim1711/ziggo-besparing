@@ -10,6 +10,7 @@ import { buildInsights, buildSummary } from '@/engine/insights'
 import { rankOptions, type OptionBadge } from '@/engine/ranking'
 import { defaultChecklist, type SwitchChecklist } from '@/engine/switching'
 import type { ComparisonPeriod, ComparisonResult, CurrentSubscription, Insight, Offer, VodafoneCombo } from '@/engine/types'
+import { clearCountUpMemory } from '@/lib/countUp'
 import { useData, type SavedConsultation } from './data'
 
 export const MAX_OPTIONS = 3
@@ -99,8 +100,13 @@ export const useDraft = create<DraftState>()(
       setActive: (activeIndex) => set({ activeIndex }),
       setCombo: (patch) => set((s) => ({ combo: { ...s.combo, ...patch } })),
       setPeriod: (period) => set({ period }),
-      reset: () => set(fresh()),
-      load: (c) =>
+      // Nieuw klantgesprek: ook de getoonde bedragen mogen weer vanaf het begin tellen.
+      reset: () => {
+        clearCountUpMemory()
+        set(fresh())
+      },
+      load: (c) => {
+        clearCountUpMemory()
         set({
           step: 2,
           current: structuredClone(c.current),
@@ -109,7 +115,8 @@ export const useDraft = create<DraftState>()(
           period: c.period,
           startDate: c.startDate,
           activeIndex: 0,
-        }),
+        })
+      },
     }),
     { name: 'overstapadvies.draft.v3', storage: createJSONStorage(() => sessionStorage) },
   ),

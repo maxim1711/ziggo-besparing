@@ -47,6 +47,18 @@
   .safe-t { padding-top: env(safe-area-inset-top); }
 }
 
+/* Wifi-opstelling: korte, eenmalige opbouw; daarna een stille eindtoestand. */
+@keyframes wh-reveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes wh-pop { 0% { opacity: 0; transform: scale(.4); } 70% { opacity: 1; transform: scale(1.08); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes wh-wave { 0% { opacity: 0; transform: scale(.22); } 15% { opacity: .55; } 100% { opacity: 0; transform: scale(1); } }
+@keyframes wh-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wh-flow { to { stroke-dashoffset: -16; } }
+.wh-anim .wh-reveal { animation: wh-reveal .6s cubic-bezier(.2,.7,.2,1) both; }
+.wh-anim .wh-pop { transform-box: fill-box; transform-origin: 50% 100%; animation: wh-pop .5s cubic-bezier(.2,.7,.2,1) both; }
+.wh-anim .wh-wave { transform-box: fill-box; transform-origin: center; animation: wh-wave 2.4s ease-out 3 both; }
+.wh-anim .wh-fade { animation: wh-fade .8s ease both; }
+.wh-anim .wh-flow { animation: wh-fade .5s ease both, wh-flow 1.4s linear 4; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }

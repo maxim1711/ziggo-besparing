@@ -6,6 +6,9 @@ import { AnimatedMoney } from '@/components/AnimatedMoney'
 import { Breakdown } from '@/components/Breakdown'
 import { GiftImage } from '@/components/GiftImage'
 import { ListEditor } from '@/components/ListEditor'
+import { ProductComparison } from '@/components/product/ProductComparison'
+import { SpeedShowcase } from '@/components/product/SpeedShowcase'
+import { TvCards } from '@/components/product/TvCards'
 import { OfferForm, validateOffer } from '@/components/OfferForm'
 import { OptionTabs } from '@/components/OptionTabs'
 import { Button } from '@/components/ui/button'
@@ -16,6 +19,7 @@ import { findPrice, formatSpeed, isVerifiedPrice, promotionBlockedReason, staleC
 import { formatDateNl } from '@/engine/dates'
 import { priceStory } from '@/engine/customerView'
 import { differenceView } from '@/engine/switching'
+import { emptyCurrentProduct, productComparison } from '@/engine/product'
 import { newId } from '@/engine/defaults'
 import { formatEuro } from '@/engine/money'
 import type { Offer } from '@/engine/types'
@@ -96,6 +100,52 @@ function Steps({ step, canPresent }: { step: 1 | 2; canPresent: boolean }) {
 
 /* ---------- stap 1: huidige situatie ---------- */
 
+type Known = 'onbekend' | 'ja' | 'nee'
+const toKnown = (b: boolean | null): Known => (b === null ? 'onbekend' : b ? 'ja' : 'nee')
+const fromKnown = (k: Known): boolean | null => (k === 'onbekend' ? null : k === 'ja')
+const KNOWN_OPTIONS: { value: Known; label: string }[] = [
+  { value: 'onbekend', label: 'Weet ik niet' },
+  { value: 'ja', label: 'Ja' },
+  { value: 'nee', label: 'Nee' },
+]
+
+/** Optionele productgegevens van het huidige abonnement. Alles mag leeg blijven; leeg = onbekend. */
+function ExtendedCurrent() {
+  const { current, setCurrent } = useDraft()
+  const p = current.product ?? emptyCurrentProduct()
+  const set = (patch: Partial<typeof p>) => setCurrent({ product: { ...p, ...patch } })
+  const filled = [current.speedMbps, p.extenders, current.hasTv ? p.recording : null, p.phone, current.hasTv ? p.channels : null].filter((v) => v !== null).length
+  return (
+    <More label={`Uitgebreid vergelijken${filled ? ` (${filled})` : ''}`} defaultOpen={filled > 0}>
+      <p className="-mt-2 text-sm text-muted-foreground">Alleen invullen wat u zeker weet. Wat leeg blijft, wordt niet vergeleken.</p>
+      <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
+        <Field label="Huidige internetsnelheid">
+          <NumberInput value={current.speedMbps} onChange={(n) => setCurrent({ speedMbps: n && n > 0 ? n : null })} nullable placeholder="Onbekend" suffix="Mbit/s" max={10000} />
+        </Field>
+        <div>
+          <div className="mb-1.5 text-[13px] font-medium text-muted-foreground">Wifi-versterkers</div>
+          <Segmented<string> aria-label="Huidige wifi-versterkers" value={p.extenders === null ? '?' : String(Math.min(p.extenders, 3))} onChange={(v) => set({ extenders: v === '?' ? null : Number(v) })} options={[{ value: '?', label: '?' }, { value: '0', label: '0' }, { value: '1', label: '1' }, { value: '2', label: '2' }, { value: '3', label: '3+' }]} />
+        </div>
+        <div>
+          <div className="mb-1.5 text-[13px] font-medium text-muted-foreground">Vaste telefonie</div>
+          <Segmented aria-label="Huidige vaste telefonie" value={toKnown(p.phone)} onChange={(k) => set({ phone: fromKnown(k) })} options={KNOWN_OPTIONS} />
+        </div>
+        {current.hasTv && (
+          <>
+            <div>
+              <div className="mb-1.5 text-[13px] font-medium text-muted-foreground">Kan de klant programma’s opnemen?</div>
+              <Segmented aria-label="Huidige opneemfunctie" value={toKnown(p.recording)} onChange={(k) => set({ recording: fromKnown(k) })} options={KNOWN_OPTIONS} />
+            </div>
+            <Field label="Aantal tv-zenders">
+              <NumberInput value={p.channels} onChange={(n) => set({ channels: n })} nullable placeholder="Onbekend" max={999} />
+            </Field>
+          </>
+        )}
+      </div>
+    </More>
+  )
+}
+
 function StepCurrent() {
   const { current, setCurrent, setStep } = useDraft()
   const custom = current.provider !== '' && !PROVIDERS.includes(current.provider)
@@ -162,9 +212,6 @@ function StepCurrent() {
             <Field label="Pakketnaam">
               <Input value={current.packageName} onChange={(e) => setCurrent({ packageName: e.target.value })} />
             </Field>
-            <Field label="Internetsnelheid">
-              <NumberInput value={current.speedMbps} onChange={(n) => setCurrent({ speedMbps: n })} nullable suffix="Mbit/s" max={10000} />
-            </Field>
             <Field label="Aantal tv-ontvangers">
               <NumberInput value={current.tvReceivers} onChange={(n) => setCurrent({ tvReceivers: n ?? 0 })} max={9} />
             </Field>
@@ -204,6 +251,8 @@ function StepCurrent() {
             <NumberInput value={current.futureFromMonth} onChange={(n) => setCurrent({ futureFromMonth: Math.max(1, n ?? 1) })} min={1} max={24} />
           </Field>
         </More>
+
+        <ExtendedCurrent />
 
         <div>
           <Button variant="primary" size="lg" className="w-full" onClick={() => setStep(2)}>
@@ -419,26 +468,33 @@ function Builder() {
             )
           })}
         </div>
+        {net && (
+          <div className="mt-3">
+            <SpeedShowcase internet={net} options={internet} />
+          </div>
+        )}
       </section>
 
       <section>
-        <SectionTitle hint={net ? 'totaalprijs per maand, incl. internet' : undefined}>Televisie</SectionTitle>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Tile active={!sel.tvId} onClick={() => setSelection({ tvId: null, phone: false })}>
-            <div className="text-[17px] font-semibold">Geen TV</div>
-            <div className="mt-1 text-sm text-muted-foreground">Alleen internet</div>
-          </Tile>
-          {tvs.map((t) => {
-            const cents = net ? priceOf(net.id, t.id, false) : null
-            return (
-              <Tile key={t.id} active={sel.tvId === t.id} onClick={() => setSelection({ tvId: t.id })}>
-                <div className="pr-7 text-[17px] font-semibold">{t.name}</div>
-                <div className="tnum mt-1 text-sm text-muted-foreground">{!net ? t.features[0] : cents === null ? <span className="font-semibold text-warn">Prijs controleren</span> : `${formatEuro(cents)} p/m`}</div>
-              </Tile>
-            )
-          })}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <h2 className="text-[17px] font-semibold tracking-tight">Televisie</h2>
+          <div className="flex items-center gap-3">
+            {net && <span className="hidden text-xs text-muted-foreground sm:inline">totaalprijs per maand, incl. internet</span>}
+            <button type="button" aria-pressed={!sel.tvId} onClick={() => setSelection({ tvId: null, phone: false })} className={cn('flex h-11 items-center gap-1.5 rounded-full border-2 px-4 text-sm font-semibold transition-colors', !sel.tvId ? 'border-primary bg-primary text-white' : 'border-border bg-card text-muted-foreground hover:border-primary/40')}>
+              {!sel.tvId && <Check className="size-4" strokeWidth={3} />} Geen tv
+            </button>
+          </div>
         </div>
-        {tv && <p className="mt-2 text-sm text-muted-foreground">{tv.features.join(' · ')}</p>}
+        <TvCards
+          tvs={tvs}
+          all={pricing.tv}
+          selectedId={sel.tvId}
+          onSelect={(id) => setSelection({ tvId: id })}
+          priceLabel={(t) => {
+            const cents = net ? priceOf(net.id, t.id, false) : null
+            return !net ? 'Kies eerst een snelheid' : cents === null ? <span className="font-semibold text-warn">Prijs controleren</span> : `${formatEuro(cents)} p/m`
+          }}
+        />
       </section>
 
       <section>
@@ -487,7 +543,7 @@ function Builder() {
             checked={sel.phone}
             onCheckedChange={(phone) => setSelection({ phone })}
             label="Vast bellen toevoegen"
-            description={!net ? 'Kies eerst een internetpakket.' : base !== null && withPhone !== null ? `+ ${formatEuro(withPhone - base)} per maand (Alles-in-1). Belkosten zelf zijn niet meegerekend.` : sel.phone ? 'Voor deze combinatie is geen gecontroleerde prijs ingesteld.' : tv ? 'Prijs voor deze combinatie nog niet ingesteld.' : 'Alleen ingesteld in combinatie met tv.'}
+            description={!net ? 'Kies eerst een internetpakket.' : base !== null && withPhone !== null ? `+ ${formatEuro(withPhone - base)} per maand${tv ? ' (Alles-in-1)' : ''} buiten acties. Belkosten zelf zijn niet meegerekend.` : sel.phone ? 'Voor deze combinatie is geen gecontroleerde prijs ingesteld.' : tv ? 'Prijs voor deze combinatie nog niet ingesteld.' : 'Prijs voor internet met vaste telefonie nog niet ingesteld.'}
           />
         </div>
       </More>
@@ -676,7 +732,7 @@ function Summary() {
         <>
           <div>
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <AnimatedMoney cents={story.nowCents} className="text-5xl font-semibold tracking-tight" />
+              <AnimatedMoney memoryKey="advies:maandprijs" cents={story.nowCents} className="text-5xl font-semibold tracking-tight" />
               <span className="text-muted-foreground">per maand</span>
             </div>
             <ul className="mt-2 space-y-0.5 text-[15px] text-muted-foreground">
@@ -694,10 +750,11 @@ function Summary() {
 
           <div className={cn('flex items-center justify-between gap-3 rounded-2xl px-5 py-4', res.tone === 'good' ? 'bg-good-soft' : res.tone === 'warn' ? 'bg-warn-soft' : 'bg-muted')}>
             <span className="text-sm font-medium">{res.label}</span>
-            <AnimatedMoney cents={res.cents} decimals="auto" className={cn('text-3xl font-semibold tracking-tight', res.tone === 'good' && 'text-good', res.tone === 'warn' && 'text-warn')} />
+            <AnimatedMoney memoryKey={`advies:${res.tone}`} cents={res.cents} decimals="auto" className={cn('text-3xl font-semibold tracking-tight', res.tone === 'good' && 'text-good', res.tone === 'warn' && 'text-warn')} />
           </div>
           {!view.result.currentKnown && <p className="-mt-2 text-xs text-muted-foreground">Vul in stap 1 het huidige maandbedrag in om het verschil te zien.</p>}
           {res.tone === 'warn' && <p className="tnum -mt-2 text-sm text-muted-foreground">{differenceView(view.result).headline}{differenceView(view.result).includesOneTime ? ' (incl. eenmalige kosten)' : ''}</p>}
+          <ProductComparison size="sm" rows={productComparison(view.current, offer.product)} currentName={view.current.provider || 'Nu'} nextName={offer.provider} />
         </>
       )}
 
